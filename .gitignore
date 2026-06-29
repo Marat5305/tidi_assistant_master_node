@@ -1,0 +1,12 @@
+# Зависимости
+node_modules/
+
+# Переменные окружения
+.env
+.env.local
+.env.development
+.env.production
+
+# Expo
+.expo/
+.expo-shared/

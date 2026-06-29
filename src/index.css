@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@layer base {
+  /* Цветовая система */
+  :root {
+    /* Основной цвет - Тиффани (raw colors) */
+    --color-primary: #0abab5;
+    --color-dark: #158683;
+    --color-light: #f2fbfa;
+    
+    /* Семантические цвета (по назначению) */
+    --color-accent: var(--color-primary);
+    --color-surface: var(--color-light);
+    --color-hover: var(--color-dark);
+  }
+
+  /* Кастомный скроллбар */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+}
+
+/* Тонкий стилизованный скроллбар */
+.thin-scrollbar {
+  /* Firefox: тонкий скроллбар */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent) 30%, transparent) transparent;
+}
+
+/* Chrome, Safari, Edge */
+.thin-scrollbar::-webkit-scrollbar {
+  height: 4px; /* для горизонтального скролла */
+  width: 4px;  /* на всякий случай, если будет и вертикальный */
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 4px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+
+@layer utilities {
+  /* Светлая тема */
+  .bg-chat-glow-light {
+    background: radial-gradient(
+      circle at 25% 50%,
+      rgb(127, 203, 200) 0%,
+      rgb(10, 186, 181) 60%,
+      rgb(5, 151, 146) 90%
+    );
+  }
+
+  /* Темная тема - более насыщенные пятна */
+  .bg-chat-glow-dark {
+    background: radial-gradient(
+      circle at 25% 50%,
+      rgba(0, 67, 73) 0%,
+      rgb(19, 35, 37) 40%,
+      rgb(22, 23, 23) 90%
+    );
+  }
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: #0abab5;
+    box-shadow: 0 0 5px #0abab5;
+  }
+  50% {
+    border-color: #158683;
+    box-shadow: 0 0 15px #0abab5;
+  }
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-border-glow {
+  animation: borderGlow 1.5s ease-in-out infinite;
+  border-color: #0abab5;
+}
+
+.text-gradient-logo {
+  background: linear-gradient(90deg, #2b2b2b, #0abab5);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Градиентная полоса загрузки */
+.loading-gradient {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #0abab5,
+    #2b2b2b,
+    #0abab5,
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: gradientFlow 2s ease-in-out infinite;
+}
