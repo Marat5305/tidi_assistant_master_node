@@ -524,7 +524,6 @@ export const useChatStore = create<ChatStore>()(
           streamingMessage: '',
         });
 
-        // Добавляем сообщение пользователя
         const userMessage: Message = {
           id: generateId(),
           role: 'user',
@@ -544,34 +543,36 @@ export const useChatStore = create<ChatStore>()(
         const abortController = new AbortController();
 
         try {
-          const generator = currentSessionId != null ? apiClient.smartChatStream(
-            text,
-            agentId || '',
-            currentSessionId,
-            undefined,
-            abortController.signal
-          ) : apiClient.smartChatStream(
-            text,
-            agentId || '',
-            null,
-            undefined,
-            abortController.signal
-          );
+          const generator = currentSessionId != null
+            ? apiClient.smartChatStream(
+              text,
+              agentId || '',
+              currentSessionId,
+              undefined,
+              abortController.signal
+            )
+            : apiClient.smartChatStream(
+              text,
+              agentId || '',
+              null,
+              undefined,
+              abortController.signal
+            );
 
           for await (const chunk of generator) {
-            fullContent += chunk;
-            set({ streamingMessage: fullContent });
-            if (onChunk) onChunk(chunk);
+            // Выводим только токены
+            if (chunk.token) {
+              fullContent += chunk.token;
+              // if (chunk.message_id)
+              set({ streamingMessage: fullContent });
+              if (onChunk) onChunk(chunk.token);
+            }
           }
 
-          // Если контент пустой - ошибка
           if (!fullContent) {
             throw new Error('Smart Chat вернул пустой ответ');
           }
 
-
-
-          // Сохраняем финальное сообщение
           const assistantMessage: Message = {
             id: generateId(),
             role: 'assistant',
@@ -583,7 +584,6 @@ export const useChatStore = create<ChatStore>()(
             status: 'sent'
           };
 
-
           set((state) => ({
             messages: [...state.messages, assistantMessage],
             streamingMessage: '',
@@ -594,16 +594,13 @@ export const useChatStore = create<ChatStore>()(
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Ошибка Smart Chat';
 
-          // Если есть частичный контент - сохраняем его
           if (fullContent) {
-
             const assistantMessage: Message = {
               id: generateId(),
               role: 'assistant',
               content: fullContent + '\n\n⚠️ Соединение было прервано, но часть ответа сохранена.',
               threadId: 'smart-chat',
               sessionId: 'smart-chat',
-              // citations: citations,
               timestamp: Date.now(),
               created_at: new Date().toISOString(),
               status: 'sent'
@@ -618,7 +615,6 @@ export const useChatStore = create<ChatStore>()(
             return;
           }
 
-          // Если контента нет - показываем ошибку
           set({
             streamingMessage: '',
             isStreaming: false,

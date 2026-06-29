@@ -88,6 +88,7 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}/agents/${agentId}/sessions`, {
       method: 'POST',
       headers: this.getHeaders(),
+      body: JSON.stringify({ agentId })
 
     });
     return this.handleResponse<Session>(response);
@@ -392,7 +393,7 @@ class ApiClient {
     session_id: string | null,
     context?: any,
     signal?: AbortSignal
-  ): AsyncGenerator<string, void, undefined> {
+  ): AsyncGenerator<{ token?: string; citations?: string[]; message_id?: number; done?: boolean }, void, undefined> {
     const url = `${this.baseUrl}/chat`;
 
     const headers: HeadersInit = {
@@ -410,7 +411,9 @@ class ApiClient {
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: session_id != null ? JSON.stringify({ message, agent_id, session_id, context, stream: true }) : JSON.stringify({ message, agent_id, context, stream: true }),
+      body: session_id != null
+        ? JSON.stringify({ message, agent_id, session_id, context, stream: true })
+        : JSON.stringify({ message, agent_id, context, stream: true }),
       signal,
     });
 
@@ -432,8 +435,8 @@ class ApiClient {
 
     const decoder = new TextDecoder();
     let buffer = '';
-
-    const citations: string[] = [];
+    // let citations: string[] = [];
+    // let messageId: number | undefined;
 
     try {
       while (true) {
@@ -451,15 +454,13 @@ class ApiClient {
           const trimmedLine = line.trim();
           if (!trimmedLine) continue;
 
-          // Пропускаем пустые строки
-          if (trimmedLine === '') continue;
-
           // Обработка SSE формата
           if (trimmedLine.startsWith('data: ')) {
             const jsonStr = trimmedLine.slice(6).trim();
 
             // Проверяем на завершение
             if (jsonStr === '[DONE]') {
+              yield { done: true };
               return;
             }
 
@@ -471,42 +472,58 @@ class ApiClient {
                 throw new Error(parsed.error);
               }
 
-              // Извлекаем текст из chunks
-              if (parsed.chunks && Array.isArray(parsed.chunks)) {
-                for (const chunk of parsed.chunks) {
+              // 1. Обработка chunks (содержат текст и источники)
+              // if (parsed.chunks && Array.isArray(parsed.chunks)) {
+              //   const newCitations: string[] = [];
+              //   let fullText = '';
 
-                  // Основной текст ответа от бота
-                  if (chunk.text) {
-                    yield chunk.text;
-                  }
+              //   for (const chunk of parsed.chunks) {
+              //     // Сохраняем текст
+              //     if (chunk.text) {
+              //       fullText += chunk.text;
+              //     }
 
-                  // Цитаты к тексту
-                  // if (chunk.source) {
-                  //   yield chunk.source;
-                  // }
-                  if (chunk.source) {
-                    citations.push(chunk.source);
-                  }
-                }
+              //     // Сохраняем источник (цитату)
+              //     if (chunk.source) {
+              //       newCitations.push(chunk.source);
+              //     }
+              //   }
+
+              //   // Обновляем общий список цитат
+              //   if (newCitations.length > 0) {
+              //     citations = [...new Set([...citations, ...newCitations])];
+              //   }
+
+              //   // Отдаем текст из чанков (если есть)
+              //   if (fullText) {
+              //     yield {
+              //       token: fullText,
+              //       citations: citations.length > 0 ? citations : undefined
+              //     };
+              //   }
+              // }
+
+              // 2. Обработка отдельных токенов (на уровне корня объекта)
+              if (parsed.token !== undefined && parsed.token !== null) {
+                yield {
+                  token: parsed.token,
+                  // citations: citations.length > 0 ? citations : undefined
+                };
               }
-              console.log('citations:', citations)
 
+              // 3. Обработка message_id (финальный ID сообщения)
+              if (parsed.message_id !== undefined) {
+                yield {
+                  message_id: parsed.message_id,
+                  // citations: citations.length > 0 ? citations : undefined
+                };
+              }
 
-              // // Извлекаем текст из text поля
-              // if (parsed.text) {
-              //   yield parsed.text;
-              // }
+              // Отладочный вывод
+              if (import.meta.env.DEV) {
+                console.log('SSE Message:', parsed);
+              }
 
-              // // Извлекаем текст из content поля
-              // // if (parsed.content) {
-              // //   yield parsed.content;
-              // // }
-
-              // // Извлекаем текст из source поля
-              // if (parsed.source) {
-              //   yield parsed.source;
-              // }
-              if (import.meta.env.DEV) console.log(parsed);
             } catch (e) {
               // Если ошибка парсинга JSON, игнорируем
               if (e instanceof Error && e.message.includes('Unexpected token')) {
@@ -530,6 +547,11 @@ class ApiClient {
       }
     }
   }
+
+
+
+
+
 
   // === Загрузка файлов ===
 

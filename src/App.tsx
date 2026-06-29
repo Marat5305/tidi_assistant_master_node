@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // src/App.tsx
 import { useEffect, useState } from 'react';
 import { AuthMock } from './components/auth/AuthMock';

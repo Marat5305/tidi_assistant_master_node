@@ -15,7 +15,7 @@
 //     if (!message.citations || message.citations.length === 0) return content;
 
 //     const parts = content.split(/(\[citation:\d+\])/g);
-    
+
 //     return parts.map((part, index) => {
 //       const match = part.match(/\[citation:(\d+)\]/);
 //       if (match) {
@@ -77,7 +77,7 @@ export function MessageItem({ message, onCitationClick, activeCitationId }: Mess
     if (!message.citations || message.citations.length === 0) return content;
 
     const parts = content.split(/(\[source:\d+\])/g);
-    
+
     return parts.map((part, index) => {
       const match = part.match(/\[citation:(\d+)\]/);
       if (match) {
@@ -91,8 +91,8 @@ export function MessageItem({ message, onCitationClick, activeCitationId }: Mess
             onClick={() => citation && onCitationClick?.(citation.id)}
             className={`
               inline-flex items-center px-1 rounded transition-all
-              ${isActive 
-                ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] font-bold' 
+              ${isActive
+                ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] font-bold'
                 : 'bg-[var(--color-accent)]/5 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/15'
               }
             `}
@@ -110,8 +110,8 @@ export function MessageItem({ message, onCitationClick, activeCitationId }: Mess
       <div
         className={`
           max-w-[70%] rounded-lg px-4 py-2 mx-6 border 
-          ${isUser 
-            ? 'bg-[var(--color-surface)] border-[var(--color-accent)] text-black' 
+          ${isUser
+            ? 'bg-[var(--color-surface)] border-[var(--color-accent)] text-black'
             : 'bg-white dark:bg-gray-700 border-[var(--color-surface)] shadow-sm text-gray-900 dark:text-white'
           }
         `}

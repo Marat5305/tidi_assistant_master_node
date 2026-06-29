@@ -13,7 +13,7 @@ interface MessageListProps {
 
 // Компонент принимает проп bottomRef
 export function MessageList({ bottomRef }: MessageListProps) {
-  const { messages, isMasterMode, sendMessageStream, isStreaming } = useChatStore();
+  const { messages, isMasterMode, smartChatStream, isStreaming } = useChatStore();
   const [activeCitationId, setActiveCitationId] = useState<string | null>(null);
 
   // Функция, возвращающая статичные подсказки для всех ассистентов
@@ -55,7 +55,8 @@ export function MessageList({ bottomRef }: MessageListProps) {
     // const { sendMessage, isStreaming } = useChatStore.getState();
     if (isStreaming) return;
     // sendMessage(prompt);
-    sendMessageStream(prompt);
+    // sendMessageStream(prompt);
+    smartChatStream(prompt)
   };
 
   return (
