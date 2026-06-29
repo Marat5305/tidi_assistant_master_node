@@ -1,6 +1,9 @@
 // src/utils/markdown.tsx
 import { type Components } from 'react-markdown';
 import type { ReactNode } from 'react';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import type { PluggableList } from 'unified';
 
 type CodeComponentProps = {
   inline?: boolean;
@@ -52,4 +55,7 @@ export const markdownComponents: Components = {
   ),
 };
 
-export const markdownPlugins = ['remarkGfm', 'rehypeHighlight'] as const;
+export const markdownPlugins: PluggableList = [
+  remarkGfm,
+  rehypeHighlight,
+];
