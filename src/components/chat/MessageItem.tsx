@@ -9,7 +9,7 @@ import { markdownComponents, markdownPlugins } from '../../utils/markdown.tsx';
 
 interface MessageItemProps {
   message: Message;
-  onCitationClick?: (citationId: string) => void;
+  onCitationClick?: (citationId: string) => void; 
   activeCitationId?: string | null;
 }
 
