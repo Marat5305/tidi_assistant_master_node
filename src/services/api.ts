@@ -2,7 +2,11 @@
 // src/services/api.ts
 import type { Session } from '../types/chat';
 
-const DEFAULT_API_URL = 'http://localhost:8000';
+// const DEFAULT_API_URL = 'http://89.109.54.73:8005/api';
+const api_url_response = await fetch('/config.json');
+const DEFAULT_API_URL = await api_url_response.json();
+
+// const DEFAULT_API_URL = import.meta.env.VITE_API_URL;
 
 // Типы для API
 // export interface Session {
