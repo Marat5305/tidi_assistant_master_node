@@ -4,7 +4,9 @@ import type { Session } from '../types/chat';
 
 // const DEFAULT_API_URL = 'http://89.109.54.73:8005/api';
 const api_url_response = await fetch('/config.json');
-const DEFAULT_API_URL = await api_url_response.json();
+const json = await api_url_response.json();
+// const DEFAULT_API_URL = await api_url_response.json();
+const DEFAULT_API_URL = json.API_BASE_URL;
 
 // const DEFAULT_API_URL = import.meta.env.VITE_API_URL;
 
