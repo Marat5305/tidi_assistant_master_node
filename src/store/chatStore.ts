@@ -9,7 +9,6 @@ import type {
   Citation,
   ChatState,
   ChatActions,
-  // Session
 } from '../types/chat';
 import { generateId } from '../utils/id';
 
@@ -41,7 +40,7 @@ export const useChatStore = create<ChatStore>()(
       showCitationsPanel: true,
       error: null,
       isLoading: false,
-      // isMasterMode: true,
+      isMasterMode: true,
 
       // === Управление агентом и сессиями ===
 
@@ -53,8 +52,8 @@ export const useChatStore = create<ChatStore>()(
       createSession: async () => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
-          throw new Error('Agent ID не установлен');
+          console.warn('❌ Agent ID не установлен, сессия не создана');
+          return;
         }
 
         set({ isLoading: true, error: null });
@@ -80,7 +79,7 @@ export const useChatStore = create<ChatStore>()(
       loadSessions: async () => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем загрузку сессий');
           return;
         }
 
@@ -127,7 +126,7 @@ export const useChatStore = create<ChatStore>()(
       renameSession: async (sessionId: string, name: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем переименование');
           return;
         }
 
@@ -151,7 +150,7 @@ export const useChatStore = create<ChatStore>()(
       deleteSession: async (sessionId: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем удаление');
           return;
         }
 
@@ -189,7 +188,7 @@ export const useChatStore = create<ChatStore>()(
       loadSessionMessages: async (sessionId: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем загрузку сообщений');
           return;
         }
 
@@ -260,6 +259,7 @@ export const useChatStore = create<ChatStore>()(
         const { agentId, currentSessionId } = get();
 
         if (!agentId || !currentSessionId) {
+          console.warn('ℹ️ Не выбрана сессия или агент');
           set({ error: 'Не выбрана сессия или агент' });
           return;
         }
@@ -329,12 +329,11 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
-      // src/store/chatStore.ts
-
       sendMessageStream: async (text: string, onChunk?: (chunk: string) => void) => {
         const { agentId, currentSessionId } = get();
 
         if (!agentId || !currentSessionId) {
+          console.warn('ℹ️ Не выбрана сессия или агент');
           set({ error: 'Не выбрана сессия или агент' });
           return;
         }
@@ -512,10 +511,19 @@ export const useChatStore = create<ChatStore>()(
 
       /**
        * Умный чат со стримингом (без привязки к агенту)
+       * @param text - текст сообщения
+       * @param agentId - опциональный ID агента (для ручного выбора)
+       * @param onChunk - колбэк для получения чанков
        */
-      smartChatStream: async (text: string, onChunk?: (chunk: string) => void) => {
-        const { agentId } = get();
-        const { currentSessionId } = get();
+      smartChatStream: async (text: string, agentId?: string, onChunk?: (chunk: string) => void) => {
+        const { currentSessionId, isMasterMode } = get();
+
+        console.log('🚀 [chatStore.smartChatStream] Вызов:', {
+          text: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+          agentId: agentId || 'не указан (мастер-режим)',
+          currentSessionId: currentSessionId || 'не указан',
+          isMasterMode: isMasterMode
+        });
 
         set({
           isLoading: true,
@@ -540,34 +548,94 @@ export const useChatStore = create<ChatStore>()(
         }));
 
         let fullContent = '';
+        let sessionCreated = false;
         const abortController = new AbortController();
 
         try {
-          const generator = currentSessionId != null
-            ? apiClient.smartChatStream(
-              text,
-              agentId || '',
-              currentSessionId,
-              undefined,
-              abortController.signal
-            )
-            : apiClient.smartChatStream(
-              text,
-              agentId || '',
-              null,
-              undefined,
-              abortController.signal
-            );
+          // ========== 🔧 ГЛАВНОЕ ИСПРАВЛЕНИЕ ==========
+          // В мастер-режиме НЕ ПЕРЕДАЁМ session_id
+          // session_id передаём ТОЛЬКО если:
+          // 1. Мы НЕ в мастер-режиме
+          // 2. И есть currentSessionId
+          const shouldSendSessionId = !isMasterMode && currentSessionId;
+          
+          console.log('📤 [chatStore] Параметры отправки:', {
+            shouldSendSessionId,
+            sessionIdToSend: shouldSendSessionId ? currentSessionId : null,
+            isMasterMode
+          });
+
+          const generator = apiClient.smartChatStream(
+            text,
+            agentId,
+            shouldSendSessionId ? currentSessionId : null, // <-- null в мастер-режиме
+            undefined,
+            abortController.signal
+          );
+          // ==========================================
 
           for await (const chunk of generator) {
-            // Выводим только токены
+            console.log('📥 [chatStore.smartChatStream] Получен chunk:', {
+              hasAgentId: !!chunk.agentId,
+              hasSessionId: !!chunk.sessionId,
+              hasToken: !!chunk.token,
+              hasDone: !!chunk.done,
+              agentId: chunk.agentId,
+              sessionId: chunk.sessionId,
+              tokenLength: chunk.token?.length || 0
+            });
+
+            // ===== ОБРАБОТКА МЕТАДАННЫХ (заголовки от бекенда) =====
+            if (chunk.agentId || chunk.sessionId) {
+              console.log('🎯 [chatStore.smartChatStream] Получены метаданные!', {
+                newAgentId: chunk.agentId,
+                newSessionId: chunk.sessionId,
+                oldAgentId: get().agentId,
+                oldSessionId: get().currentSessionId
+              });
+
+              const updates: any = {};
+              
+              if (chunk.agentId) {
+                updates.agentId = chunk.agentId;
+                console.log('✅ [chatStore] Устанавливаем agentId:', chunk.agentId);
+              }
+              
+              if (chunk.sessionId) {
+                updates.currentSessionId = chunk.sessionId;
+                console.log('✅ [chatStore] Устанавливаем sessionId:', chunk.sessionId);
+                sessionCreated = true;
+              }
+              
+              // Выходим из мастер-режима
+              updates.isMasterMode = false;
+              console.log('🔄 [chatStore] Выход из мастер-режима');
+              
+              set(updates);
+              
+              console.log('📊 [chatStore] Состояние после обновления:', {
+                agentId: get().agentId,
+                currentSessionId: get().currentSessionId,
+                isMasterMode: get().isMasterMode
+              });
+              
+              // Загружаем сообщения сессии если есть sessionId и agentId
+              if (chunk.sessionId && chunk.agentId) {
+                console.log('📥 [chatStore] Загружаем сообщения для сессии:', chunk.sessionId);
+                await get().loadSessionMessages(chunk.sessionId);
+              }
+              continue;
+            }
+            
+            // Обработка токенов
             if (chunk.token) {
               fullContent += chunk.token;
-              // if (chunk.message_id)
               set({ streamingMessage: fullContent });
               if (onChunk) onChunk(chunk.token);
             }
           }
+
+          console.log('✅ [chatStore.smartChatStream] Стрим завершен. Длина ответа:', fullContent.length);
 
           if (!fullContent) {
             throw new Error('Smart Chat вернул пустой ответ');
@@ -591,7 +659,11 @@ export const useChatStore = create<ChatStore>()(
             isLoading: false,
           }));
 
+          console.log('📝 [chatStore] Сообщение ассистента добавлено');
+
         } catch (error) {
+          console.error('❌ [chatStore.smartChatStream] Ошибка:', error);
+
           const errorMessage = error instanceof Error ? error.message : 'Ошибка Smart Chat';
 
           if (fullContent) {
@@ -650,11 +722,10 @@ export const useChatStore = create<ChatStore>()(
 
       // === Обратная связь ===
 
-      // setFeedback: async (messageId: string, rating: 'positive' | 'negative', comment?: string) => {
       setFeedback: async (messageId: string, vote: number, comment?: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем отправку feedback');
           return;
         }
 
@@ -664,7 +735,7 @@ export const useChatStore = create<ChatStore>()(
           await apiClient.setFeedback(agentId, messageId, vote, comment);
           set({ isLoading: false });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки反馈';
+          const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки feedback';
           set({ error: errorMessage, isLoading: false });
         }
       },
@@ -672,14 +743,14 @@ export const useChatStore = create<ChatStore>()(
       getFeedback: async (messageId: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем получение feedback');
           return null;
         }
 
         try {
           return await apiClient.getFeedback(agentId, messageId);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка получения反馈';
+          const errorMessage = error instanceof Error ? error.message : 'Ошибка получения feedback';
           set({ error: errorMessage });
           return null;
         }
@@ -688,7 +759,7 @@ export const useChatStore = create<ChatStore>()(
       deleteFeedback: async (messageId: string) => {
         const { agentId } = get();
         if (!agentId) {
-          set({ error: 'Agent ID не установлен' });
+          console.warn('ℹ️ Agent ID не установлен, пропускаем удаление feedback');
           return;
         }
 
@@ -698,7 +769,7 @@ export const useChatStore = create<ChatStore>()(
           await apiClient.deleteFeedback(agentId, messageId);
           set({ isLoading: false });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка удаления反馈';
+          const errorMessage = error instanceof Error ? error.message : 'Ошибка удаления feedback';
           set({ error: errorMessage, isLoading: false });
         }
       },
@@ -706,7 +777,6 @@ export const useChatStore = create<ChatStore>()(
       // === Управление цитатами ===
 
       setCitations: (citations: Citation[]) => {
-        // set({ activeCitations: citations });
         if (citations) {
           citations.forEach((citation) => {
             set({ activeCitations: [...get().activeCitations, citation] })

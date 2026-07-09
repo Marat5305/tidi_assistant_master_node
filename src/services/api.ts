@@ -391,168 +391,251 @@ class ApiClient {
   }
 
   /**
-   * Умный чат со стримингом
-   */
-  async *smartChatStream(
-    message: string,
-    agent_id: string,
-    session_id: string | null,
-    context?: any,
-    signal?: AbortSignal
-  ): AsyncGenerator<{ token?: string; citations?: string[]; message_id?: number; done?: boolean }, void, undefined> {
-    const url = `${this.baseUrl}/chat`;
+ * Умный чат со стримингом
+ * Поддерживает три сценария:
+ * 1. {message} - только сообщение (роутинг)
+ * 2. {message, agent_id} - сообщение + агент (ручной выбор)
+ * 3. {message, agent_id, session_id} - сообщение + агент + сессия (продолжение)
+ */
+async *smartChatStream(
+  message: string,
+  agent_id?: string,
+  session_id?: string | null,
+  context?: any,
+  signal?: AbortSignal
+): AsyncGenerator<{ token?: string; citations?: string[]; message_id?: number; done?: boolean; agentId?: string; sessionId?: string }, void, undefined> {
+  const url = `${this.baseUrl}/chat`;
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'X-User-Id': '11111111-1111-1111-1111-111111111111'
-    };
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-User-Id': '11111111-1111-1111-1111-111111111111'
+  };
 
-    if (typeof localStorage !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+  if (typeof localStorage !== 'undefined') {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+  }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: session_id != null
-        ? JSON.stringify({ message, agent_id, session_id, context, stream: true })
-        : JSON.stringify({ message, agent_id, context, stream: true }),
-      signal,
+  const body: any = { 
+    message, 
+    stream: true 
+  };
+  
+  if (agent_id) {
+    body.agent_id = agent_id;
+  }
+  
+  if (session_id) {
+    body.session_id = session_id;
+  }
+  
+  if (context) {
+    body.context = context;
+  }
+
+  // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 1 ==========
+  console.log('📤 [api.smartChatStream] Отправка запроса:', {
+    url,
+    method: 'POST',
+    headers: {
+      'Content-Type': headers['Content-Type'],
+      'X-User-Id': headers['X-User-Id'],
+      'Authorization': headers['Authorization'] ? 'Bearer ***' : undefined
+    },
+    body: body,
+    hasSignal: !!signal
+  });
+  // ===========================================
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 2 ==========
+  console.log('📨 [api.smartChatStream] Получен ответ:', {
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    headers: Object.fromEntries(response.headers.entries())
+  });
+  // ==========================================
+
+  // После получения ответа
+  console.log('📨 [api.smartChatStream] Получен ответ:', {
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+  });
+
+  // ========== 🔍 ЛОГИРУЕМ ВСЕ ЗАГОЛОВКИ ==========
+  console.log('🔍 [api] ВСЕ заголовки ответа:');
+  response.headers.forEach((value, key) => {
+    console.log(`  ${key}: ${value}`);
+  });
+  // ===============================================
+
+  // ========== ИЗВЛЕКАЕМ ЗАГОЛОВКИ СРАЗУ ПОСЛЕ FETCH ==========
+  const newAgentId = response.headers.get('x-agent-id');
+  const newSessionId = response.headers.get('x-session-id');
+
+  // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 3 ==========
+  console.log('🔑 [api.smartChatStream] Извлеченные заголовки:', {
+    'x-agent-id': newAgentId,
+    'x-session-id': newSessionId,
+    // Проверяем альтернативные варианты написания
+    'X-Agent-Id': response.headers.get('X-Agent-Id'),
+    'X-Session-Id': response.headers.get('X-Session-Id'),
+    'agent-id': response.headers.get('agent-id'),
+    'session-id': response.headers.get('session-id'),
+    'agentId': response.headers.get('agentId'),
+    'sessionId': response.headers.get('sessionId'),
+    // Проверяем все заголовки, которые начинаются с x-
+    'all-x-headers': Object.fromEntries(
+      Array.from(response.headers.entries())
+        .filter(([key]) => key.toLowerCase().startsWith('x-'))
+    )
+  });
+  // ===========================================
+
+  // Отдаем метаданные ПЕРВЫМ СООБЩЕНИЕМ ДО ЧТЕНИЯ СТРИМА
+  if (newAgentId || newSessionId) {
+    // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 4 ==========
+    console.log('📣 [api.smartChatStream] Отправляем метаданные в поток:', {
+      agentId: newAgentId || undefined,
+      sessionId: newSessionId || undefined
     });
+    // ===========================================
+    
+    yield {
+      agentId: newAgentId || undefined,
+      sessionId: newSessionId || undefined,
+      token: ''
+    };
+  }
 
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}`;
-      try {
-        const errorBody = await response.json();
-        errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-      } catch {
-        // Если не удалось распарсить JSON
-      }
-      throw new Error(errorMessage);
-    }
+  // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 5 ==========
+  console.log('📡 [api.smartChatStream] Начинаем чтение стрима...');
+  // ===========================================
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('ReadableStream not supported in this environment');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    // let citations: string[] = [];
-    // let messageId: number | undefined;
-
+  if (!response.ok) {
+    // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 6 ==========
+    console.error('❌ [api.smartChatStream] Ошибка ответа:', {
+      status: response.status,
+      statusText: response.statusText
+    });
+    // ===========================================
+    
+    let errorMessage = `HTTP ${response.status}`;
     try {
-      while (true) {
-        const { done, value } = await reader.read();
+      const errorBody = await response.json();
+      errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
+    } catch {
+      // Если не удалось распарсить JSON
+    }
+    throw new Error(errorMessage);
+  }
 
-        if (done) {
-          break;
-        }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('ReadableStream not supported in this environment');
+  }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let chunkCount = 0;
 
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
 
-          // Обработка SSE формата
-          if (trimmedLine.startsWith('data: ')) {
-            const jsonStr = trimmedLine.slice(6).trim();
+      if (done) {
+        // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 7 ==========
+        console.log('🏁 [api.smartChatStream] Стрим завершен. Всего чанков:', chunkCount);
+        // ===========================================
+        break;
+      }
 
-            // Проверяем на завершение
-            if (jsonStr === '[DONE]') {
-              yield { done: true };
-              return;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        if (trimmedLine.startsWith('data: ')) {
+          const jsonStr = trimmedLine.slice(6).trim();
+
+          if (jsonStr === '[DONE]') {
+            // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 8 ==========
+            console.log('✅ [api.smartChatStream] Получен [DONE]');
+            // ===========================================
+            yield { done: true };
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            
+            // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 9 ==========
+            chunkCount++;
+            if (chunkCount <= 3) { // Логируем только первые 3 чанка, чтобы не заспамить
+              console.log(`📦 [api.smartChatStream] Чанк #${chunkCount}:`, parsed);
+            }
+            // ===========================================
+
+            if (parsed.error) {
+              throw new Error(parsed.error);
             }
 
-            try {
-              const parsed = JSON.parse(jsonStr);
-
-              // Проверяем на ошибку
-              if (parsed.error) {
-                throw new Error(parsed.error);
-              }
-
-              // 1. Обработка chunks (содержат текст и источники)
-              // if (parsed.chunks && Array.isArray(parsed.chunks)) {
-              //   const newCitations: string[] = [];
-              //   let fullText = '';
-
-              //   for (const chunk of parsed.chunks) {
-              //     // Сохраняем текст
-              //     if (chunk.text) {
-              //       fullText += chunk.text;
-              //     }
-
-              //     // Сохраняем источник (цитату)
-              //     if (chunk.source) {
-              //       newCitations.push(chunk.source);
-              //     }
-              //   }
-
-              //   // Обновляем общий список цитат
-              //   if (newCitations.length > 0) {
-              //     citations = [...new Set([...citations, ...newCitations])];
-              //   }
-
-              //   // Отдаем текст из чанков (если есть)
-              //   if (fullText) {
-              //     yield {
-              //       token: fullText,
-              //       citations: citations.length > 0 ? citations : undefined
-              //     };
-              //   }
-              // }
-
-              // 2. Обработка отдельных токенов (на уровне корня объекта)
-              if (parsed.token !== undefined && parsed.token !== null) {
-                yield {
-                  token: parsed.token,
-                  // citations: citations.length > 0 ? citations : undefined
-                };
-              }
-
-              // 3. Обработка message_id (финальный ID сообщения)
-              if (parsed.message_id !== undefined) {
-                yield {
-                  message_id: parsed.message_id,
-                  // citations: citations.length > 0 ? citations : undefined
-                };
-              }
-
-              // Отладочный вывод
-              if (import.meta.env.DEV) {
-                console.log('SSE Message:', parsed);
-              }
-
-            } catch (e) {
-              // Если ошибка парсинга JSON, игнорируем
-              if (e instanceof Error && e.message.includes('Unexpected token')) {
-                continue;
-              }
-              throw e;
+            // Обработка токенов
+            if (parsed.token !== undefined && parsed.token !== null) {
+              yield {
+                token: parsed.token,
+              };
             }
+
+            // Обработка message_id
+            if (parsed.message_id !== undefined) {
+              yield {
+                message_id: parsed.message_id,
+              };
+            }
+
+          } catch (e) {
+            if (e instanceof Error && e.message.includes('Unexpected token')) {
+              // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 10 ==========
+              console.warn('⚠️ [api.smartChatStream] Ошибка парсинга JSON, пропускаем:', jsonStr);
+              // ===========================================
+              continue;
+            }
+            throw e;
           }
         }
       }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return;
-      }
-      throw error;
-    } finally {
-      try {
-        reader.releaseLock();
-      } catch {
-        // Игнорируем
-      }
+    }
+  } catch (error) {
+    // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 11 ==========
+    console.error('💥 [api.smartChatStream] Ошибка в стриме:', error);
+    // ===========================================
+    
+    if (error instanceof Error && error.name === 'AbortError') {
+      return;
+    }
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Игнорируем
     }
   }
+}
 
 
 
