@@ -480,43 +480,24 @@ class ApiClient {
       // ===============================================
 
       // ========== ИЗВЛЕКАЕМ ЗАГОЛОВКИ СРАЗУ ПОСЛЕ FETCH ==========
-      const newAgentId = response.headers.get('x-agent-id');
-      const newSessionId = response.headers.get('x-session-id');
-
-      // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 3 ==========
-      console.log('🔑 [api.smartChatStream] Извлеченные заголовки:', {
-        'x-agent-id': newAgentId,
-        'x-session-id': newSessionId,
-        // Проверяем альтернативные варианты написания
-        'X-Agent-Id': response.headers.get('X-Agent-Id'),
-        'X-Session-Id': response.headers.get('X-Session-Id'),
-        'agent-id': response.headers.get('agent-id'),
-        'session-id': response.headers.get('session-id'),
-        'agentId': response.headers.get('agentId'),
-        'sessionId': response.headers.get('sessionId'),
-        // Проверяем все заголовки, которые начинаются с x-
-        'all-x-headers': Object.fromEntries(
-          Array.from(response.headers.entries())
-            .filter(([key]) => key.toLowerCase().startsWith('x-'))
-        )
-      });
-      // ===========================================
+      // const newAgentId = response.headers.get('x-agent-id');
+      // const newSessionId = response.headers.get('x-session-id');
 
       // Отдаем метаданные ПЕРВЫМ СООБЩЕНИЕМ ДО ЧТЕНИЯ СТРИМА
-      if (newAgentId || newSessionId) {
-        // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 4 ==========
-        console.log('📣 [api.smartChatStream] Отправляем метаданные в поток:', {
-          agentId: newAgentId || undefined,
-          sessionId: newSessionId || undefined
-        });
-        // ===========================================
+      // if (newAgentId || newSessionId) {
+      //   // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 4 ==========
+      //   console.log('📣 [api.smartChatStream] Отправляем метаданные в поток:', {
+      //     agentId: newAgentId || undefined,
+      //     sessionId: newSessionId || undefined
+      //   });
+      //   // ===========================================
         
-        yield {
-          agentId: newAgentId || undefined,
-          sessionId: newSessionId || undefined,
-          token: ''
-        };
-      }
+      //   yield {
+      //     agentId: newAgentId || undefined,
+      //     sessionId: newSessionId || undefined,
+      //     token: ''
+      //   };
+      // }
 
       // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 5 ==========
       console.log('📡 [api.smartChatStream] Начинаем чтение стрима...');
