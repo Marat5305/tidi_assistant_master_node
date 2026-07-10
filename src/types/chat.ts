@@ -239,4 +239,5 @@ export interface ChatActions {
   clearFiles: () => void;
   processFile: (fileId: string) => Promise<void>;
   retryFile: (fileId: string) => Promise<void>;
+  uploadPendingFiles: () => Promise<void>; 
 }

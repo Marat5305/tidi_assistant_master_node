@@ -17,6 +17,7 @@ export function InputArea() {
     uploadingFiles = [],
     removeFile,
     addFile,
+    uploadPendingFiles,
   } = useChatStore();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -40,16 +41,30 @@ export function InputArea() {
 
   const handleSend = async () => {
     if (isStreaming) return;
+
+    // Проверяем, есть ли файлы в процессе загрузки
+    const hasProcessingFiles = uploadingFiles.some(
+      f => f.status === 'uploading' || f.status === 'processing'
+    );
     if (hasProcessingFiles) {
       console.warn('Дождитесь завершения загрузки файлов');
       return;
     }
-    if (!input.trim() && uploadingFiles.length === 0) return;
 
+    // Если есть текст - отправляем его
     const message = input.trim();
-    setInput('');
     
+    // Если нет текста и нет файлов - ничего не делаем
+    if (!message && uploadingFiles.length === 0) return;
+
+    // Если есть текст - сохраняем его для отправки после загрузки файлов
+    setInput('');
+
     try {
+      // Сначала загружаем все pending файлы
+      await uploadPendingFiles();
+      
+      // Потом отправляем текст, если он есть
       if (message) {
         await smartChatStream(message);
       }
