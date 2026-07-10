@@ -705,6 +705,7 @@ class ApiClient {
    * @returns Promise<string> - распознанный текст
    * @throws {Error} - с сообщением об ошибке от сервера
    */
+  
   async ocrFile(
     file: File,
     onProgress?: (progress: number) => void
@@ -715,7 +716,6 @@ class ApiClient {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
-      // Прогресс загрузки
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable && onProgress) {
           const progress = Math.round((event.loaded / event.total) * 100);
@@ -724,7 +724,6 @@ class ApiClient {
       });
 
       xhr.addEventListener('load', () => {
-        // Успешный ответ
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText) as { text: string };
@@ -733,14 +732,12 @@ class ApiClient {
             reject(new Error('Неверный формат ответа сервера'));
           }
         } else {
-          // Обработка ошибок с сервера
           let errorMessage = `Ошибка ${xhr.status}`;
           try {
             const error = JSON.parse(xhr.responseText);
-            // Разные форматы ошибок
             errorMessage = error.detail || error.message || error.error || errorMessage;
           } catch {
-            // Если не удалось распарсить JSON
+            // ignore
           }
           reject(new Error(errorMessage));
         }
@@ -754,7 +751,6 @@ class ApiClient {
         reject(new DOMException('Загрузка отменена', 'AbortError'));
       });
 
-      // Заголовки
       const token = typeof localStorage !== 'undefined'
         ? localStorage.getItem('auth_token')
         : null;
@@ -763,8 +759,16 @@ class ApiClient {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
 
-      // Отправляем на OCR агент
-      xhr.open('POST', `${this.baseUrl}/agents/ocr/ocr`);
+      // ✅ ИСПРАВЛЕНО: Отправляем через мастер-роутер на порт 8005
+      const url = `${this.baseUrl}/agents/ocr/ocr`;
+      console.log('📤 [ocrFile] Отправка на мастер:', url);
+      console.log('📤 [ocrFile] Файл:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+      
+      xhr.open('POST', url);
       xhr.send(formData);
     });
   }

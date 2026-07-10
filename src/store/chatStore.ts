@@ -809,27 +809,29 @@ export const useChatStore = create<ChatStore>()(
         // Валидация файла
         const validation = validateFile(file);
         if (!validation.valid) {
-          // Показываем ошибку через uiStore или просто консоль
           console.error(validation.error);
-          // TODO: Добавить нормальную обработку ошибок
           return;
         }
 
+        const fileId = generateId();
         const newFile: FileAttachment = {
-          id: generateId(),
+          id: fileId,
           name: file.name,
           size: file.size,
           type: file.type,
-          status: 'uploading',
+          status: 'pending',
           progress: 0,
         };
+
+        // Сохраняем File объект во временном хранилище
+        if (!(window as any).__pendingFiles) {
+          (window as any).__pendingFiles = {};
+        }
+        (window as any).__pendingFiles[fileId] = file;
 
         set((state) => ({
           uploadingFiles: [...state.uploadingFiles, newFile]
         }));
-
-        // Автоматически начинаем обработку
-        await get().processFile(newFile.id);
       },
 
       updateFileProgress: (fileId: string, progress: number) => {
@@ -857,12 +859,21 @@ export const useChatStore = create<ChatStore>()(
       },
 
       removeFile: (fileId: string) => {
+        // Удаляем из временного хранилища
+        if ((window as any).__pendingFiles) {
+          delete (window as any).__pendingFiles[fileId];
+        }
+        
         set((state) => ({
           uploadingFiles: state.uploadingFiles.filter((f) => f.id !== fileId)
         }));
       },
 
       clearFiles: () => {
+        // Очищаем временное хранилище
+        if ((window as any).__pendingFiles) {
+          (window as any).__pendingFiles = {};
+        }
         set({ uploadingFiles: [] });
       },
 
@@ -871,34 +882,39 @@ export const useChatStore = create<ChatStore>()(
         const fileEntry = get().uploadingFiles.find((f) => f.id === fileId);
         if (!fileEntry) return;
 
-        // Получаем сам файл (нужно будет передавать его отдельно)
-        // Временно используем заглушку
-        // TODO: Нужно будет передавать File объект отдельно
-        console.warn('⚠️ processFile: нужно передавать File объект');
+        // Нам нужно получить сам File объект
+        // Для этого мы будем хранить файлы в отдельном Map или в состоянии
+        // Пока используем временное решение - будем искать в глобальной переменной
+        // TODO: В будущем лучше хранить файлы в отдельном хранилище
+        const file = (window as any).__pendingFiles?.[fileId];
+        if (!file) {
+          console.error('❌ Файл не найден:', fileId);
+          get().updateFileStatus(fileId, 'error', 'Файл не найден');
+          return;
+        }
 
         // Обновляем статус
         get().updateFileStatus(fileId, 'processing');
 
         try {
-          // Здесь будем вызывать apiClient.ocrFile
-          // Пока просто имитируем успех
-          const mockText = `Распознанный текст из файла ${fileEntry.name}`;
-          
-          // Имитируем задержку
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Вызываем API для распознавания
+          const text = await apiClient.ocrFile(
+            file,
+            (progress) => get().updateFileProgress(fileId, progress)
+          );
           
           // Обновляем статус
           get().updateFileStatus(fileId, 'completed');
           get().updateFileProgress(fileId, 100);
-          get().updateFileExtractedText(fileId, mockText);
+          get().updateFileExtractedText(fileId, text);
 
-          // Отправляем текст в чат
-          if (mockText.trim()) {
+          // Отправляем текст в чат, если он не пустой
+          if (text && text.trim()) {
             // Добавляем сообщение пользователя с распознанным текстом
             const userMessage: Message = {
               id: generateId(),
               role: 'user',
-              content: mockText.trim(),
+              content: text.trim(),
               threadId: 'smart-chat',
               sessionId: 'smart-chat',
               timestamp: Date.now(),
@@ -911,11 +927,17 @@ export const useChatStore = create<ChatStore>()(
             }));
 
             // Отправляем в чат
-            await get().smartChatStream(mockText.trim());
+            await get().smartChatStream(text.trim());
+          } else {
+            // Текст не найден
+            get().updateFileStatus(fileId, 'error', 'Текст не найден на изображении');
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Ошибка обработки файла';
           get().updateFileStatus(fileId, 'error', errorMessage);
+        } finally {
+          // Удаляем файл из временного хранилища
+          delete (window as any).__pendingFiles?.[fileId];
         }
       },
 
@@ -927,6 +949,20 @@ export const useChatStore = create<ChatStore>()(
         get().updateFileStatus(fileId, 'uploading');
         get().updateFileProgress(fileId, 0);
         await get().processFile(fileId);
+      },
+      uploadPendingFiles: async () => {
+        const { uploadingFiles } = get();
+        const pendingFiles = uploadingFiles.filter(f => f.status === 'pending');
+        
+        if (pendingFiles.length === 0) {
+          return;
+        }
+
+        console.log(`📤 Загружаем ${pendingFiles.length} файлов...`);
+        
+        // Пока загружаем только первый файл (для теста)
+        const file = pendingFiles[0];
+        await get().processFile(file.id);
       },
     }),
     { name: 'chat-store' }

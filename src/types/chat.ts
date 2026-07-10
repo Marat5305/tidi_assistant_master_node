@@ -15,7 +15,7 @@ export interface FileAttachment {
   size: number;
   type: string;
   url?: string;
-  status: 'uploading' | 'processing' | 'completed' | 'error';
+  status: FileStatus;
   progress: number;
   error?: string;
   extractedText?: string;
@@ -161,13 +161,15 @@ export interface ChatActions {
   setMasterMode: (enabled: boolean) => void;
 }
 
+export type FileStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
+
 export interface FileAttachment {
   id: string;
   name: string;
   size: number;
   type: string;
   url?: string;
-  status: 'uploading' | 'processing' | 'completed' | 'error';
+  status: FileStatus;
   progress: number;
   error?: string;
   extractedText?: string;

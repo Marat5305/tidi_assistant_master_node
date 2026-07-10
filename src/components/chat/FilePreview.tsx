@@ -1,4 +1,6 @@
-import { FileIcon, X, Loader2, CheckCircle, AlertCircle, Image, FileText } from 'lucide-react';
+// src/components/chat/FilePreview.tsx
+
+import { FileIcon, X, Loader2, CheckCircle, AlertCircle, Image, FileText, Clock } from 'lucide-react';
 import type { FileAttachment } from '../../types/chat';
 
 interface FilePreviewProps {
@@ -10,6 +12,8 @@ interface FilePreviewProps {
 export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
   const getStatusIcon = () => {
     switch (file.status) {
+      case 'pending':
+        return <Clock className="w-4 h-4 text-gray-400" />;
       case 'uploading':
         return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
       case 'processing':
@@ -35,6 +39,8 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
 
   const getStatusText = () => {
     switch (file.status) {
+      case 'pending':
+        return 'Ожидает отправки';
       case 'uploading':
         return `Загрузка ${file.progress}%`;
       case 'processing':
@@ -50,6 +56,8 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
 
   const getStatusColor = () => {
     switch (file.status) {
+      case 'pending':
+        return 'border-gray-200 bg-gray-50';
       case 'uploading':
       case 'processing':
         return 'border-blue-200 bg-blue-50';
@@ -77,10 +85,8 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
       ${getStatusColor()}
       ${isProcessing ? 'animate-pulse' : ''}
     `}>
-      {/* Иконка файла */}
       {getFileIcon()}
 
-      {/* Информация о файле */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{file.name}</span>
@@ -90,7 +96,6 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
           {getStatusIcon()}
         </div>
         
-        {/* Прогресс загрузки */}
         {(file.status === 'uploading' || file.status === 'processing') && (
           <div className="w-full h-1 mt-1 bg-gray-200 rounded-full overflow-hidden">
             <div 
@@ -100,7 +105,6 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
           </div>
         )}
 
-        {/* Статус или извлеченный текст */}
         {file.status === 'completed' && file.extractedText && (
           <div className="text-xs text-green-600 truncate mt-0.5">
             ✓ Распознано: {file.extractedText.slice(0, 60)}...
@@ -120,7 +124,6 @@ export function FilePreview({ file, onRemove, disabled }: FilePreviewProps) {
         )}
       </div>
 
-      {/* Кнопка удаления */}
       <button
         onClick={() => onRemove(file.id)}
         disabled={!canRemove}
