@@ -707,71 +707,98 @@ class ApiClient {
    */
   
   async ocrFile(
-    file: File,
-    onProgress?: (progress: number) => void
-  ): Promise<string> {
-    const formData = new FormData();
-    formData.append('file', file);
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+  // Создаем XHR для прогресса
+  const xhr = new XMLHttpRequest();
+  
+  // Отслеживаем прогресс загрузки
+  xhr.upload.addEventListener('progress', (event) => {
+    if (event.lengthComputable && onProgress) {
+      const progress = Math.round((event.loaded / event.total) * 100);
+      onProgress(progress);
+    }
+  });
 
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          onProgress(progress);
-        }
-      });
+  // Создаем Promise для Fetch
+  const fetchPromise = fetch(`${this.baseUrl}/agents/ocr/ocr`, {
+    method: 'POST',
+    headers: {
+      'X-User-Id': '11111111-1111-1111-1111-111111111111',
+      ...(localStorage.getItem('auth_token') && {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      })
+    },
+    body: formData,
+  });
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText) as { text: string };
-            resolve(response.text || '');
-          } catch {
-            reject(new Error('Неверный формат ответа сервера'));
-          }
-        } else {
-          let errorMessage = `Ошибка ${xhr.status}`;
-          try {
-            const error = JSON.parse(xhr.responseText);
-            errorMessage = error.detail || error.message || error.error || errorMessage;
-          } catch {
-            // ignore
-          }
-          reject(new Error(errorMessage));
-        }
-      });
+  // Ожидаем ответ
+  const response = await fetchPromise;
+  
+  if (!response.ok) {
+    let errorMessage = `Ошибка ${response.status}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || error.message || error.error || errorMessage;
+    } catch {
+      // Игнорируем
+    }
+    throw new Error(errorMessage);
+  }
 
-      xhr.addEventListener('error', () => {
-        reject(new Error('Ошибка сети при загрузке файла'));
-      });
+  // Читаем поток
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('ReadableStream not supported');
+  }
 
-      xhr.addEventListener('abort', () => {
-        reject(new DOMException('Загрузка отменена', 'AbortError'));
-      });
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
 
-      const token = typeof localStorage !== 'undefined'
-        ? localStorage.getItem('auth_token')
-        : null;
-
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        break;
       }
 
-      // ✅ ИСПРАВЛЕНО: Отправляем через мастер-роутер на порт 8005
-      const url = `${this.baseUrl}/agents/ocr/ocr`;
-      console.log('📤 [ocrFile] Отправка на мастер:', url);
-      console.log('📤 [ocrFile] Файл:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-      });
-      
-      xhr.open('POST', url);
-      xhr.send(formData);
-    });
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith('data: ')) {
+          const jsonStr = trimmedLine.slice(6).trim();
+          
+          if (jsonStr === '[DONE]') {
+            continue;
+          }
+          
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.token) {
+              fullText += parsed.token;
+            }
+          } catch (e) {
+            console.warn('⚠️ [OCR] Ошибка парсинга:', jsonStr, e);
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
   }
+
+  console.log('✅ [OCR] Распознано символов:', fullText.length);
+  return fullText || '';
+}
 }
 
 // Создаем экземпляр клиента
