@@ -697,6 +697,77 @@ class ApiClient {
       xhr.send(formData);
     });
   }
+
+  /**
+   * Отправить файл на OCR распознавание
+   * @param file - файл для распознавания (изображение или PDF)
+   * @param onProgress - колбэк для отслеживания прогресса загрузки
+   * @returns Promise<string> - распознанный текст
+   * @throws {Error} - с сообщением об ошибке от сервера
+   */
+  async ocrFile(
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Прогресс загрузки
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        // Успешный ответ
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText) as { text: string };
+            resolve(response.text || '');
+          } catch {
+            reject(new Error('Неверный формат ответа сервера'));
+          }
+        } else {
+          // Обработка ошибок с сервера
+          let errorMessage = `Ошибка ${xhr.status}`;
+          try {
+            const error = JSON.parse(xhr.responseText);
+            // Разные форматы ошибок
+            errorMessage = error.detail || error.message || error.error || errorMessage;
+          } catch {
+            // Если не удалось распарсить JSON
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Ошибка сети при загрузке файла'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new DOMException('Загрузка отменена', 'AbortError'));
+      });
+
+      // Заголовки
+      const token = typeof localStorage !== 'undefined'
+        ? localStorage.getItem('auth_token')
+        : null;
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      // Отправляем на OCR агент
+      xhr.open('POST', `${this.baseUrl}/agents/ocr/ocr`);
+      xhr.send(formData);
+    });
+  }
 }
 
 // Создаем экземпляр клиента
