@@ -43,6 +43,7 @@ export const useChatStore = create<ChatStore>()(
       error: null,
       isLoading: false,
       isMasterMode: true,
+      uploadingFiles: [],
 
       // === Управление агентом и сессиями ===
 
