@@ -11,6 +11,8 @@ import type {
   ChatActions,
 } from '../types/chat';
 import { generateId } from '../utils/id';
+import { validateFile } from '../config/ocr';
+import type { FileAttachment } from '../types/chat';
 
 type ChatStore = ChatState & ChatActions;
 
@@ -548,7 +550,6 @@ export const useChatStore = create<ChatStore>()(
         }));
 
         let fullContent = '';
-        let sessionCreated = false;
         const abortController = new AbortController();
 
         try {
@@ -604,7 +605,6 @@ export const useChatStore = create<ChatStore>()(
               if (chunk.sessionId) {
                 updates.currentSessionId = chunk.sessionId;
                 console.log('✅ [chatStore] Устанавливаем sessionId:', chunk.sessionId);
-                sessionCreated = true;
               }
               
               // Выходим из мастер-режима
@@ -800,6 +800,132 @@ export const useChatStore = create<ChatStore>()(
 
       setMasterMode: (enabled: boolean) => {
         set({ isMasterMode: enabled });
+      },
+
+      // === Управление файлами ===
+
+      addFile: async (file: File) => {
+        // Валидация файла
+        const validation = validateFile(file);
+        if (!validation.valid) {
+          // Показываем ошибку через uiStore или просто консоль
+          console.error(validation.error);
+          // TODO: Добавить нормальную обработку ошибок
+          return;
+        }
+
+        const newFile: FileAttachment = {
+          id: generateId(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'uploading',
+          progress: 0,
+        };
+
+        set((state) => ({
+          uploadingFiles: [...state.uploadingFiles, newFile]
+        }));
+
+        // Автоматически начинаем обработку
+        await get().processFile(newFile.id);
+      },
+
+      updateFileProgress: (fileId: string, progress: number) => {
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.map((f) =>
+            f.id === fileId ? { ...f, progress } : f
+          )
+        }));
+      },
+
+      updateFileStatus: (fileId: string, status: FileAttachment['status'], error?: string) => {
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.map((f) =>
+            f.id === fileId ? { ...f, status, error } : f
+          )
+        }));
+      },
+
+      updateFileExtractedText: (fileId: string, text: string) => {
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.map((f) =>
+            f.id === fileId ? { ...f, extractedText: text } : f
+          )
+        }));
+      },
+
+      removeFile: (fileId: string) => {
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.filter((f) => f.id !== fileId)
+        }));
+      },
+
+      clearFiles: () => {
+        set({ uploadingFiles: [] });
+      },
+
+      processFile: async (fileId: string) => {
+        // Находим файл в сторе
+        const fileEntry = get().uploadingFiles.find((f) => f.id === fileId);
+        if (!fileEntry) return;
+
+        // Получаем сам файл (нужно будет передавать его отдельно)
+        // Временно используем заглушку
+        // TODO: Нужно будет передавать File объект отдельно
+        console.warn('⚠️ processFile: нужно передавать File объект');
+
+        // Обновляем статус
+        get().updateFileStatus(fileId, 'processing');
+
+        try {
+          // Здесь будем вызывать apiClient.ocrFile
+          // Пока просто имитируем успех
+          const mockText = `Распознанный текст из файла ${fileEntry.name}`;
+          
+          // Имитируем задержку
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Обновляем статус
+          get().updateFileStatus(fileId, 'completed');
+          get().updateFileProgress(fileId, 100);
+          get().updateFileExtractedText(fileId, mockText);
+
+          // Отправляем текст в чат
+          if (mockText.trim()) {
+            // Добавляем сообщение пользователя с распознанным текстом
+            const userMessage: Message = {
+              id: generateId(),
+              role: 'user',
+              content: mockText.trim(),
+              threadId: 'smart-chat',
+              sessionId: 'smart-chat',
+              timestamp: Date.now(),
+              created_at: new Date().toISOString(),
+              status: 'sent'
+            };
+
+            set((state) => ({
+              messages: [...state.messages, userMessage]
+            }));
+
+            // Отправляем в чат
+            await get().smartChatStream(mockText.trim());
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Ошибка обработки файла';
+          get().updateFileStatus(fileId, 'error', errorMessage);
+        }
+      },
+
+      retryFile: async (fileId: string) => {
+        const fileEntry = get().uploadingFiles.find((f) => f.id === fileId);
+        if (!fileEntry || fileEntry.status !== 'error') return;
+
+        // Сбрасываем статус и пробуем снова
+        get().updateFileStatus(fileId, 'uploading');
+        get().updateFileProgress(fileId, 0);
+        await get().processFile(fileId);
       },
     }),
     { name: 'chat-store' }

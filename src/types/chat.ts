@@ -15,8 +15,10 @@ export interface FileAttachment {
   size: number;
   type: string;
   url?: string;
-  status: 'uploading' | 'uploaded' | 'error';
+  status: 'uploading' | 'processing' | 'completed' | 'error';
   progress: number;
+  error?: string;
+  extractedText?: string;
 }
 
 export interface Citation {
@@ -157,4 +159,82 @@ export interface ChatActions {
   setStreaming: (isStreaming: boolean) => void;
   setError: (error: string | null) => void;
   setMasterMode: (enabled: boolean) => void;
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url?: string;
+  status: 'uploading' | 'processing' | 'completed' | 'error';
+  progress: number;
+  error?: string;
+  extractedText?: string;
+}
+
+export interface ChatState {
+  // Состояние для нового API
+  agentId: string | null;
+  sessions: Session[];
+  currentSessionId: string | null;
+  
+  // Состояние чата
+  messages: Message[];
+  isStreaming: boolean;
+  streamingMessage: string;
+  activeCitations: Citation[];
+  showCitationsPanel: boolean;
+  error: string | null;
+  
+  // UI состояние
+  isLoading: boolean;
+  isMasterMode: boolean;
+  
+  // 🆕 Состояние для файлов
+  uploadingFiles: FileAttachment[];
+}
+
+export interface ChatActions {
+  // Управление агентом и сессиями
+  setAgentId: (agentId: string) => void;
+  createSession: () => Promise<string>;
+  loadSessions: () => Promise<void>;
+  setActiveSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, name: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  
+  // Работа с сообщениями
+  loadSessionMessages: (sessionId: string) => Promise<void>;
+  sendMessage: (text: string) => Promise<void>;
+  sendMessageStream: (text: string, onChunk?: (chunk: string) => void) => Promise<void>;
+  clearMessages: () => void;
+  
+  // Smart Chat методы
+  smartChat: (text: string, context?: any) => Promise<void>;
+  smartChatStream: (text: string, onChunk?: (chunk: string) => void) => Promise<void>;
+  
+  // Обратная связь
+  setFeedback: (messageId: string, vote: number, comment?: string) => Promise<void>;
+  getFeedback: (messageId: string) => Promise<any>;
+  deleteFeedback: (messageId: string) => Promise<void>;
+  
+  // Управление цитатами
+  setCitations: (citations: Citation[]) => void;
+  toggleCitationsPanel: () => void;
+  
+  // Управление состоянием
+  setStreaming: (isStreaming: boolean) => void;
+  setError: (error: string | null) => void;
+  setMasterMode: (enabled: boolean) => void;
+  
+  // 🆕 Управление файлами
+  addFile: (file: File) => Promise<void>;
+  updateFileProgress: (fileId: string, progress: number) => void;
+  updateFileStatus: (fileId: string, status: FileAttachment['status'], error?: string) => void;
+  updateFileExtractedText: (fileId: string, text: string) => void;
+  removeFile: (fileId: string) => void;
+  clearFiles: () => void;
+  processFile: (fileId: string) => Promise<void>;
+  retryFile: (fileId: string) => Promise<void>;
 }
