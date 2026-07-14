@@ -983,10 +983,6 @@ export const useChatStore = create<ChatStore>()(
         const fileEntry = get().uploadingFiles.find((f) => f.id === fileId);
         if (!fileEntry) return;
 
-        // Нам нужно получить сам File объект
-        // Для этого мы будем хранить файлы в отдельном Map или в состоянии
-        // Пока используем временное решение - будем искать в глобальной переменной
-        // TODO: В будущем лучше хранить файлы в отдельном хранилище
         const file = (window as any).__pendingFiles?.[fileId];
         if (!file) {
           console.error("❌ Файл не найден:", fileId);
@@ -994,42 +990,34 @@ export const useChatStore = create<ChatStore>()(
           return;
         }
 
-        // Обновляем статус
         get().updateFileStatus(fileId, "processing");
 
         try {
-          // Вызываем API для распознавания
           const text = await apiClient.ocrFile(file, (progress) =>
             get().updateFileProgress(fileId, progress),
           );
 
-          // Обновляем статус
           get().updateFileStatus(fileId, "completed");
           get().updateFileProgress(fileId, 100);
           get().updateFileExtractedText(fileId, text);
 
-          // Отправляем текст в чат, если он не пустой
           if (text && text.trim()) {
-            // Добавляем сообщение пользователя с распознанным текстом
-            const userMessage: Message = {
-              id: generateId(),
-              role: "user",
-              content: text.trim(),
-              threadId: "smart-chat",
-              sessionId: "smart-chat",
-              timestamp: Date.now(),
-              created_at: new Date().toISOString(),
-              status: "sent",
-            };
-
-            set((state) => ({
-              messages: [...state.messages, userMessage],
-            }));
-
             // Отправляем в чат
             await get().smartChatStream(text.trim());
+
+            // 🔥 АВТОУДАЛЕНИЕ ЧЕРЕЗ 2 СЕКУНДЫ
+            setTimeout(() => {
+              const currentFiles = get().uploadingFiles;
+              const fileExists = currentFiles.some((f) => f.id === fileId);
+
+              if (fileExists) {
+                get().removeFile(fileId);
+                console.log(
+                  `✅ [processFile] Файл ${fileId} автоматически удален`,
+                );
+              }
+            }, 1000);
           } else {
-            // Текст не найден
             get().updateFileStatus(
               fileId,
               "error",
@@ -1041,7 +1029,6 @@ export const useChatStore = create<ChatStore>()(
             error instanceof Error ? error.message : "Ошибка обработки файла";
           get().updateFileStatus(fileId, "error", errorMessage);
         } finally {
-          // Удаляем файл из временного хранилища
           delete (window as any).__pendingFiles?.[fileId];
         }
       },
