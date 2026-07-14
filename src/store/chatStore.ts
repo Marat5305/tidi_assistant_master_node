@@ -949,6 +949,17 @@ export const useChatStore = create<ChatStore>()(
       },
 
       removeFile: (fileId: string) => {
+        // 🔥 НАХОДИМ ФАЙЛ ПЕРЕД УДАЛЕНИЕМ, ЧТОБЫ ПОЛУЧИТЬ PREVIEW_URL
+        const fileToRemove = get().uploadingFiles.find((f) => f.id === fileId);
+
+        // 🧹 ОСВОБОЖДАЕМ ПАМЯТЬ ОТ ВРЕМЕННОГО URL
+        if (fileToRemove?.previewUrl) {
+          URL.revokeObjectURL(fileToRemove.previewUrl);
+          console.log(
+            `🧹 [removeFile] Освобождена память для ${fileToRemove.name}`,
+          );
+        }
+
         // Удаляем из временного хранилища
         if ((window as any).__pendingFiles) {
           delete (window as any).__pendingFiles[fileId];
