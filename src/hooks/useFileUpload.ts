@@ -51,7 +51,8 @@ export function useFileUpload() {
         });
 
         updateFileStatus(attachment.id, {
-          status: 'uploaded',
+          // status: 'uploaded',
+          status: 'uploading',
           url: result.url,
           progress: 100,
         });
