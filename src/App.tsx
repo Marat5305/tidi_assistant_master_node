@@ -18,6 +18,7 @@ function App() {
   const isDev = import.meta.env.DEV;
   const skipAuth = localStorage.getItem('rag_skip_auth') === 'true';
 
+
   // Подписываемся на событие успешного входа
   useEffect(() => {
     const handleAuthSuccess = () => {

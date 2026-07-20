@@ -111,6 +111,7 @@ export interface ChatState {
   agentId: string | null;
   sessions: Session[];
   currentSessionId: string | null;
+  firstRequest: boolean;
   
   // Состояние чата
   messages: Message[];

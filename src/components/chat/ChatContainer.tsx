@@ -7,7 +7,7 @@ import { FileDropZone } from './FileDropZone';
 import { ChevronDown } from 'lucide-react';
 
 export function ChatContainer() {
-  const { messages, isMasterMode, isStreaming, setAgentId } = useChatStore();
+  const { messages, isMasterMode, isStreaming } = useChatStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -29,9 +29,9 @@ export function ChatContainer() {
   //   }
   // }, [error]);
 
-  useEffect(() => {
-    setAgentId('epoz');
-  }, [])
+  // useEffect(() => {
+  //   setAgentId('epoz');
+  // }, [])
 
   // Отслеживаем положение скролла
   useEffect(() => {
