@@ -1,79 +1,40 @@
 import { useState, useRef, useCallback, type DragEvent, type ClipboardEvent, type ReactNode } from 'react';
 import { Upload } from 'lucide-react';
+import { useChatStore } from '../../store/chatStore';
+import { validateFile } from '../../config/ocr';
 
 interface FileDropZoneProps {
   children: ReactNode;
-  onFilesSelected?: (files: File[]) => void;
 }
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-
-const ALLOWED_TYPES = [
-  // PDF
-  'application/pdf',
-  
-  // Microsoft Word
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  
-  // LibreOffice / OpenOffice Writer
-  'application/vnd.oasis.opendocument.text',
-  'application/vnd.oasis.opendocument.text-template',
-  
-  // Microsoft Excel
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  
-  // LibreOffice / OpenOffice Calc
-  'application/vnd.oasis.opendocument.spreadsheet',
-  'application/vnd.oasis.opendocument.spreadsheet-template',
-  
-  // CSV (часто используют с Excel)
-  'text/csv',
-  'text/tab-separated-values',
-  
-  // Текстовые
-  'text/plain',
-  
-  // Изображения
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-];
-
-export function FileDropZone({ children, onFilesSelected }: FileDropZoneProps) {
+export function FileDropZone({ children }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dragCounter = useRef(0);
-
-  const validateFiles = (files: File[]): File[] => {
-    const validFiles: File[] = [];
-    
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        setError(`Файл "${file.name}" слишком большой (макс. 50 МБ)`);
-        continue;
-      }
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        setError(`Неподдерживаемый тип файла: ${file.type || 'неизвестный'}`);
-        continue;
-      }
-      validFiles.push(file);
-    }
-    
-    return validFiles;
-  };
+  
+  // Получаем методы из стора
+  const { addFile, isStreaming } = useChatStore();
 
   const processFiles = useCallback((files: File[]) => {
-    const validFiles = validateFiles(files);
+    let hasError = false;
     
-    if (validFiles.length > 0) {
-      // Файлы готовы к загрузке
-      onFilesSelected?.(validFiles);
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        setError(validation.error || 'Файл не поддерживается');
+        hasError = true;
+        continue;
+      }
+      
+      // Добавляем файл в стор
+      addFile(file);
+    }
+    
+    // Если все файлы прошли валидацию, очищаем ошибку
+    if (!hasError) {
       setError(null);
     }
-  }, [onFilesSelected]);
+  }, [addFile]);
 
   // Drag events
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -106,14 +67,24 @@ export function FileDropZone({ children, onFilesSelected }: FileDropZoneProps) {
     setIsDragging(false);
     dragCounter.current = 0;
 
+    if (isStreaming) {
+      setError('Нельзя загружать файлы во время генерации ответа');
+      return;
+    }
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       processFiles(files);
     }
-  }, [processFiles]);
+  }, [processFiles, isStreaming]);
 
   // Clipboard paste
   const handlePaste = useCallback((e: ClipboardEvent) => {
+    if (isStreaming) {
+      setError('Нельзя загружать файлы во время генерации ответа');
+      return;
+    }
+
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -128,7 +99,7 @@ export function FileDropZone({ children, onFilesSelected }: FileDropZoneProps) {
     if (files.length > 0) {
       processFiles(files);
     }
-  }, [processFiles]);
+  }, [processFiles, isStreaming]);
 
   return (
     <div

@@ -1,16 +1,23 @@
-// src/components/chat/InputArea.tsx
 import { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { ArrowUp, Paperclip, Mic } from 'lucide-react';
+import { FilePreview } from './FilePreview';
+import { validateFile } from '../../config/ocr';
 
 export function InputArea() {
   const [input, setInput] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const { 
     smartChatStream, 
     isMasterMode, 
     isStreaming,
-    error 
+    error,
+    uploadingFiles = [],
+    removeFile,
+    addFile,
+    uploadPendingFiles,
   } = useChatStore();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -28,17 +35,41 @@ export function InputArea() {
     textareaRef.current?.focus();
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isStreaming) return;
+  const hasProcessingFiles = uploadingFiles.some(
+    f => f.status === 'uploading' || f.status === 'processing'
+  );
 
+  const handleSend = async () => {
+    if (isStreaming) return;
+
+    // Проверяем, есть ли файлы в процессе загрузки
+    const hasProcessingFiles = uploadingFiles.some(
+      f => f.status === 'uploading' || f.status === 'processing'
+    );
+    if (hasProcessingFiles) {
+      console.warn('Дождитесь завершения загрузки файлов');
+      return;
+    }
+
+    // Если есть текст - отправляем его
     const message = input.trim();
-    setInput('');
     
+    // Если нет текста и нет файлов - ничего не делаем
+    if (!message && uploadingFiles.length === 0) return;
+
+    // Если есть текст - сохраняем его для отправки после загрузки файлов
+    setInput('');
+
     try {
-      await smartChatStream(message);
+      // Сначала загружаем все pending файлы
+      await uploadPendingFiles();
+      
+      // Потом отправляем текст, если он есть
+      if (message) {
+        await smartChatStream(message);
+      }
     } catch (error) {
       console.error('Ошибка:', error);
-      // Восстанавливаем текст при ошибке
       setInput(message);
     }
   };
@@ -50,7 +81,24 @@ export function InputArea() {
     }
   };
 
-  const isDisabled = !input.trim() || isStreaming;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        console.error(validation.error);
+        continue;
+      }
+      addFile(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+    removeFile(fileId);
+  };
+
+  const canSend = !isStreaming && !hasProcessingFiles && (!!input.trim() || uploadingFiles.length > 0);
 
   return (
     <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
@@ -66,9 +114,23 @@ export function InputArea() {
         </div>
       )}
 
+      {/* Список загружаемых файлов */}
+      {uploadingFiles.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {uploadingFiles.map((file) => (
+            <FilePreview
+              key={file.id}
+              file={file}
+              onRemove={handleRemoveFile}
+              disabled={isStreaming || file.status === 'uploading' || file.status === 'processing'}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         <div className="relative flex-1">
-          {isMasterMode && input.length === 0 && !isStreaming && (
+          {isMasterMode && input.length === 0 && uploadingFiles.length === 0 && !isStreaming && (
             <div 
               className={`
                 absolute -inset-1.5 rounded-2xl transition-all duration-500
@@ -92,13 +154,28 @@ export function InputArea() {
               }
             `}
           >
+            {/* Кнопка прикрепления файла */}
             <button
+              onClick={() => fileInputRef.current?.click()}
               className="text-[var(--color-accent)] hover:text-[var(--color-hover)] transition-colors cursor-pointer flex-shrink-0 mt-2 disabled:opacity-50"
               aria-label="Прикрепить файл"
-              disabled={isStreaming}
+              disabled={isStreaming || hasProcessingFiles}
+              title={hasProcessingFiles ? "Дождитесь завершения загрузки" : "Прикрепить файл"}
             >
               <Paperclip size={20} />
             </button>
+
+            {/* Скрытый input для выбора файлов */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,image/*,application/pdf"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+              disabled={isStreaming || hasProcessingFiles}
+            />
+
             <textarea
               ref={textareaRef}
               value={input}
@@ -106,15 +183,22 @@ export function InputArea() {
               onKeyDown={handleKeyDown}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
-              placeholder={isStreaming ? "Ожидание ответа..." : "Напишите сообщение... (Enter — отправить)"}
+              placeholder={
+                isStreaming 
+                  ? "Ожидание ответа..." 
+                  : hasProcessingFiles 
+                    ? "Загрузка файлов..." 
+                    : "Напишите сообщение... (Enter — отправить)"
+              }
               className="flex-1 rounded-lg bg-white dark:bg-gray-700 p-2 resize-none overflow-y-auto focus:outline-none focus:ring-0 disabled:opacity-50"
               rows={1}
-              disabled={isStreaming}
+              disabled={isStreaming || hasProcessingFiles}
               style={{
                 maxHeight: '220px',
                 lineHeight: '1.5',
               }}
             />
+            
             <button
               className="text-[var(--color-accent)] hover:text-[var(--color-hover)] transition-colors cursor-pointer flex-shrink-0 mt-2 disabled:opacity-50"
               aria-label="Голосовое сообщение"
@@ -127,11 +211,11 @@ export function InputArea() {
         
         <button
           onClick={handleSend}
-          disabled={isDisabled}
+          disabled={!canSend}
           className={`
             w-10 h-10 rounded-full text-white flex items-center justify-center 
             transition-all hover:scale-105 self-end mb-3 flex-shrink-0
-            ${isDisabled 
+            ${!canSend 
               ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed' 
               : 'bg-[var(--color-accent)] hover:bg-[var(--color-hover)]'
             }
