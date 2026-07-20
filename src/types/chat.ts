@@ -116,12 +116,8 @@ export interface ChatState {
   agentId: string | null;
   sessions: Session[];
   currentSessionId: string | null;
-<<<<<<< HEAD
   firstRequest: boolean;
   
-=======
-
->>>>>>> c97b47a0c468c120c4779357d17f31f4049e2a7f
   // Состояние чата
   messages: Message[];
   isStreaming: boolean;
