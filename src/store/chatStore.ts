@@ -816,8 +816,9 @@ import type { Message, Citation, ChatState, ChatActions } from "../types/chat";
 import { generateId } from "../utils/id";
 import { validateFile } from "../config/ocr";
 import type { FileAttachment } from "../types/chat";
+import type { AllAgentsSessions } from "../types/chat";
 
-type ChatStore = ChatState & ChatActions;
+type ChatStore = ChatState & ChatActions & AllAgentsSessions;
 
 // Начальное приветственное сообщение
 const WELCOME_MESSAGE: Message = {
@@ -847,7 +848,7 @@ export const useChatStore = create<ChatStore>()(
       isLoading: false,
       isMasterMode: true,
       uploadingFiles: [],
-
+      agents_list: [],
       // === Управление агентом и сессиями ===
 
       setAgentId: (agentId: string) => {
@@ -907,6 +908,37 @@ export const useChatStore = create<ChatStore>()(
           const errorMessage =
             error instanceof Error ? error.message : "Ошибка загрузки сессий";
           set({ error: errorMessage, isLoading: false });
+        }
+      },
+
+      // В chatStore.ts, замените метод getAllAgentsSessions:
+
+      getAllAgentsSessions: async () => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const list = await apiClient.allAgentsSessions();
+
+          // Проверяем, есть ли хотя бы одна сессия
+          const hasSessions = list.some(
+            agent => agent.sessions && agent.sessions.length > 0
+          );
+
+          if (!hasSessions) {
+            console.log('⚠️ Нет сессий ни у одного агента');
+          }
+
+          set({
+            agents_list: list,
+            isLoading: false
+          });
+
+          return list;
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Ошибка загрузки сессий";
+          set({ error: errorMessage, isLoading: false });
+          throw error;
         }
       },
 

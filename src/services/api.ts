@@ -644,6 +644,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/services/api.ts
+import { AGENTS } from '../config/agents';
 import type { Session } from '../types/chat';
 
 // const DEFAULT_API_URL = 'http://89.109.54.73:8005/api';
@@ -685,6 +686,8 @@ export interface ChatResponse {
   session_id: string;
   created_at?: string;
 }
+
+
 
 class ApiClient {
   private readonly baseUrl: string;
@@ -753,6 +756,19 @@ class ApiClient {
       headers: this.getHeaders(),
     });
     return this.handleResponse<Session[]>(response);
+  }
+
+
+  async allAgentsSessions(): Promise<{agent_name: string, sessions: Session[]}[]> {
+    const all_agents: {agent_name: string, sessions: Session[]}[] = [];
+    AGENTS.forEach(async (agent) => {
+      const sessions = await listSessions(agent.id);
+      all_agents.push({
+        agent_name: agent.id,
+        sessions: sessions
+      })
+    })
+    return all_agents;
   }
 
   /**
@@ -1664,4 +1680,5 @@ export const {
   smartChat,
   smartChatStream,
   uploadFile,
+  allAgentsSessions
 } = apiClient;

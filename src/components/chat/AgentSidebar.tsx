@@ -4,10 +4,12 @@ import { AGENTS } from '../../config/agents';
 import { User, Settings, MessageCircle } from 'lucide-react';
 import { ProfileDialog } from '../ui/ProfileDialog';
 import { SettingsDialog } from '../ui/SettingsDialog';
+import { useChatStore } from '../../store/chatStore';
 
 export function AgentSidebar() {
-  const activeAgent = useUIStore((state) => state.activeAgent);
-  const setActiveAgent = useUIStore((state) => state.setActiveAgent);
+  // const activeAgent = useUIStore((state) => state.activeAgent);
+  // const setActiveAgent = useUIStore((state) => state.setActiveAgent);
+  const { setAgentId, agentId, createSession } = useChatStore();
 
   // Забираем из стора функции для работы с модалками
   const activeModal = useUIStore((state) => state.activeModal);
@@ -24,14 +26,19 @@ export function AgentSidebar() {
     openModal('settings');
   };
 
+  // Обработчик создания нового чата
+  const handleNewChat = () => {
+    createSession();
+  };
+
   return (
     <>
       <aside className="w-24 h-full flex flex-col items-center py-4 border-l border-[var(--color-accent)] bg-white dark:bg-gray-900">
         {/* Профиль */}
-          <button 
-            onClick={handleProfileClick}
-            className="flex flex-col items-center gap-1 mb-6 p-1 rounded-lg hover:bg-[var(--color-surface)] transition-colors"
-          >
+        <button
+          onClick={handleProfileClick}
+          className="flex flex-col items-center gap-1 mb-6 p-1 rounded-lg hover:bg-[var(--color-surface)] transition-colors"
+        >
           <div className="w-10 h-10 rounded-full bg-[var(--color-surface)] border-2 border-[var(--color-accent)] flex items-center justify-center">
             <User size={22} className="text-[var(--color-accent)]" />
           </div>
@@ -46,13 +53,15 @@ export function AgentSidebar() {
         {/* Агенты */}
         <div className="flex flex-col gap-3">
           {AGENTS.map((agent) => {
-            const isActive = activeAgent === agent.id;
+            // const isActive = activeAgent === agent.id;
+            const isActive = agentId === agent.id;
             const Icon = agent.icon;
 
             return (
               <button
                 key={agent.id}
-                onClick={() => setActiveAgent(isActive ? null : agent.id)}
+                // onClick={() => setActiveAgent(isActive ? null : agent.id)}
+                onClick={() => {setAgentId(agent.id); handleNewChat()}}
                 className={`
                   flex flex-col items-center gap-1 p-2 rounded-xl transition-all
                   hover:scale-105
@@ -71,7 +80,7 @@ export function AgentSidebar() {
             );
           })}
         </div>
-        
+
         {/* Нижние кнопки */}
         <div className="mt-auto flex flex-col items-center gap-3 pb-4">
           <button
@@ -97,17 +106,17 @@ export function AgentSidebar() {
         </div>
       </aside>
 
-    
+
       {/* Рендерим модалку - она будет открываться, когда activeModal === 'profile' */}
-      <ProfileDialog 
-        isOpen={activeModal === 'profile'} 
-        onClose={closeModal} 
+      <ProfileDialog
+        isOpen={activeModal === 'profile'}
+        onClose={closeModal}
       />
 
       {/* Рендерим модалку настроек */}
-      <SettingsDialog 
-        isOpen={activeModal === 'settings'} 
-        onClose={closeModal} 
+      <SettingsDialog
+        isOpen={activeModal === 'settings'}
+        onClose={closeModal}
       />
     </>
   );

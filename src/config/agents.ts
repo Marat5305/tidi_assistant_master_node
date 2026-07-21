@@ -1,4 +1,4 @@
-import { Bot, Shield, Wrench } from 'lucide-react';
+import { Wrench, Wallet, BookOpenCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface AgentConfig {
@@ -11,20 +11,30 @@ export interface AgentConfig {
 export const AGENTS: AgentConfig[] = [
   {
     id: 'epoz',
-    name: 'ЕПОЗ',
+    name: 'ЕПоЗ',
     description: 'Единое Положение о закупках',
-    icon: Shield,
+    icon: Wallet,
   },
   {
-    id: 'general',
-    name: 'Ассистент',
-    description: 'Общие вопросы и помощь',
-    icon: Bot,
+    id: 'chat',
+    name: 'Общий чат',
+    description: 'Общение на общие темы',
+    icon: Wallet,
+
   },
   {
-    id: 'technical',
-    name: 'Технический',
-    description: 'Техническая поддержка',
+    id: 'ocr',
+    name: 'Распознавание изображений',
+    description: 'Распознавание документов',
+    icon: BookOpenCheck,
+  },
+  {
+    id: 'tech_rag',
+    name: 'RAG по технической документации',
+    description: 'Ответы на вопросы по технической документации',
     icon: Wrench,
-  },
+  }
 ];
+
+//  Icon
+// book-open-check

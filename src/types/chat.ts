@@ -117,7 +117,7 @@ export interface ChatState {
   sessions: Session[];
   currentSessionId: string | null;
   firstRequest: boolean;
-  
+
   // Состояние чата
   messages: Message[];
   isStreaming: boolean;
@@ -209,6 +209,7 @@ export interface ChatActions {
   setAgentId: (agentId: string) => void;
   createSession: () => Promise<string>;
   loadSessions: () => Promise<void>;
+  getAllAgentsSessions: () => Promise<void>;
   setActiveSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, name: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -261,4 +262,13 @@ export interface ChatActions {
   processFile: (fileId: string) => Promise<void>;
   retryFile: (fileId: string) => Promise<void>;
   uploadPendingFiles: () => Promise<void>;
+}
+
+
+// Сессии всех агентов
+export type AllAgentsSessions = {
+  agents_list: {
+    agent_name: string,
+    sessions: Session[]
+  }[]
 }

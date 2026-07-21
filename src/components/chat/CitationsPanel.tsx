@@ -68,7 +68,7 @@ export function CitationsPanel({ citations, activeCitationId, onCitationClick }:
 
   return (
     <div className="mt-3 mx-6">
-      <p className="text-xs text-gray-500 mb-2 font-medium">Источники:</p>
+      <p className="text-xs text-gray-500 mb-2 font-medium">Проанализированные источники:</p>
 
       <div className="flex items-center gap-2 -mx-8">
         {/* Левая стрелка */}

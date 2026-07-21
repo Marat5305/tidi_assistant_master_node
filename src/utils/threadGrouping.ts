@@ -27,20 +27,26 @@ export function groupThreadsByDate(threads: Session[]): ThreadGroup[] {
     { title: 'Ранее', threads: [] },
   ];
 
-  threads.forEach((thread) => {
-    const threadDate = new Date(thread.updated_at || thread.created_at!);
-    const compareDate = new Date(threadDate.getFullYear(), threadDate.getMonth(), threadDate.getDate());
+  if (threads != null && threads.length != 0) {
+    threads.forEach((thread) => {
+      if (thread.id == 'ocr') {
+        return;
+      }
+      const threadDate = new Date(thread.updated_at || thread.created_at!);
+      const compareDate = new Date(threadDate.getFullYear(), threadDate.getMonth(), threadDate.getDate());
 
-    if (compareDate.getTime() === today.getTime()) {
-      groups[0].threads.push(thread);
-    } else if (compareDate.getTime() === yesterday.getTime()) {
-      groups[1].threads.push(thread);
-    } else if (compareDate > weekAgo) {
-      groups[2].threads.push(thread);
-    } else {
-      groups[3].threads.push(thread);
-    }
-  });
+      if (compareDate.getTime() === today.getTime()) {
+        groups[0].threads.push(thread);
+      } else if (compareDate.getTime() === yesterday.getTime()) {
+        groups[1].threads.push(thread);
+      } else if (compareDate > weekAgo) {
+        groups[2].threads.push(thread);
+      } else {
+        groups[3].threads.push(thread);
+      }
+    });
+  }
+
 
   // Возвращаем только непустые группы
   return groups.filter((group) => group.threads.length > 0);
