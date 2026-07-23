@@ -7,7 +7,10 @@ import { FileDropZone } from './FileDropZone';
 import { ChevronDown } from 'lucide-react';
 
 export function ChatContainer() {
-  const { messages, isMasterMode, isStreaming } = useChatStore();
+  const messages = useChatStore((state) => state.messages);
+  const isMasterMode = useChatStore((state) => state.isMasterMode);
+  const isStreaming = useChatStore((state) => state.isStreaming);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -17,23 +20,11 @@ export function ChatContainer() {
   const prevMessagesLengthRef = useRef(messages.length);
 
   const [isReady, setIsReady] = useState(false);
+  
   useEffect(() => {
     requestAnimationFrame(() => setIsReady(true));
   }, []);
 
-  // useEffect(() => {
-  //   if (error == null) {
-  //     if (import.meta.env.DEV) {
-  //       console.log('error: ', error);
-  //     }
-  //   }
-  // }, [error]);
-
-  // useEffect(() => {
-  //   setAgentId('epoz');
-  // }, [])
-
-  // Отслеживаем положение скролла
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -43,7 +34,6 @@ export function ChatContainer() {
       const newIsNearBottom = distanceToBottom < 100;
       setIsNearBottom(newIsNearBottom);
 
-      // КОГДА ПОЛЬЗОВАТЕЛЬ ДОСТИГ НИЗА - сбрасываем флаг новых сообщений
       if (newIsNearBottom && hasNewMessages) {
         setHasNewMessages(false);
       }
@@ -55,20 +45,15 @@ export function ChatContainer() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [hasNewMessages]);
 
-  // Отслеживаем новые сообщения (увеличение длины массива)
   useEffect(() => {
-    // Если появилось новое сообщение (длина увеличилась)
     if (messages.length > prevMessagesLengthRef.current) {
-      // И пользователь не внизу
       if (!isNearBottom && !isMasterMode) {
         // setHasNewMessages(true);
       }
     }
-    // Обновляем ref с текущей длиной для следующего сравнения
     prevMessagesLengthRef.current = messages.length;
   }, [messages.length, isNearBottom, isMasterMode]);
 
-  // Умный автоскролл при новых сообщениях
   useEffect(() => {
     if (!isMasterMode && messages.length > 0 && isNearBottom) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -78,8 +63,19 @@ export function ChatContainer() {
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     setIsNearBottom(true);
-    // setHasNewMessages(false); // при нажатии на кнопку сбрасываем флаг
   };
+
+  const hasRealMessages = messages.length > 1;
+  const showMessages = !isMasterMode || hasRealMessages;
+
+  useEffect(() => {
+    console.log('📊 ChatContainer состояние:', {
+      messagesCount: messages.length,
+      isMasterMode,
+      showMessages,
+      messages: messages.map(m => ({ role: m.role, content: m.content?.slice(0, 30) }))
+    });
+  }, [messages, isMasterMode, showMessages]);
 
   return (
     <div
@@ -90,18 +86,15 @@ export function ChatContainer() {
         ref={scrollContainerRef}
         className={`
           flex-1 thin-scrollbar overflow-y-auto transition-all duration-500 ease-out
-          ${isMasterMode ? 'opacity-0 invisible' : 'opacity-100 visible'}
+          ${showMessages ? 'opacity-100 visible' : 'opacity-0 invisible'}
         `}
         style={{
           transitionProperty: 'opacity, visibility',
         }}
       >
-        {/* {!isMasterMode && messages.length > 0 && ( */}
-          <MessageList bottomRef={bottomRef} />
-        {/* )} */}
+        <MessageList bottomRef={bottomRef} />
       </div>
 
-      {/* КНОПКА ПОКАЗЫВАЕТСЯ ТОЛЬКО ЕСЛИ ЕСТЬ НОВЫЕ СООБЩЕНИЯ */}
       {!isMasterMode && messages.length > 0 && !isNearBottom && (
         <button
           onClick={scrollToBottom}
@@ -135,7 +128,6 @@ export function ChatContainer() {
         </button>
       )}
 
-      {/* Прелоадер - градиентная полоса */}
       {isStreaming && (
         <div className="relative h-[3px] w-full overflow-hidden rounded-lg">
           <div className="absolute inset-0 loading-gradient" />
@@ -145,14 +137,14 @@ export function ChatContainer() {
       <div
         className={`
           w-full px-4 pb-6
-          ${isMasterMode
+          ${isMasterMode && !hasRealMessages
             ? 'max-w-2xl mx-auto mt-0'
             : 'max-w-full mt-auto'
           }
         `}
         style={{
           transform: isReady
-            ? (isMasterMode
+            ? (isMasterMode && !hasRealMessages
               ? 'translateY(calc(-50vh + 50%))'
               : 'translateY(0)')
             : 'translateY(0)',

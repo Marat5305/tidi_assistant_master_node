@@ -133,7 +133,7 @@ export interface ChatState {
 
 export interface ChatActions {
   // Управление агентом и сессиями
-  setAgentId: (agentId: string) => void;
+  setAgentId: (agentId: string | null) => void;
   createSession: () => Promise<string>;
   loadSessions: () => Promise<void>;
   setActiveSession: (sessionId: string) => Promise<void>;
@@ -206,7 +206,7 @@ export interface ChatState {
 
 export interface ChatActions {
   // Управление агентом и сессиями
-  setAgentId: (agentId: string) => void;
+  setAgentId: (agentId: string | null) => void;
   createSession: () => Promise<string>;
   loadSessions: () => Promise<void>;
   getAllAgentsSessions: () => Promise<void>;
@@ -266,9 +266,13 @@ export interface ChatActions {
 
 
 // Сессии всех агентов
-export type AllAgentsSessions = {
-  agents_list: {
-    agent_name: string,
-    sessions: Session[]
-  }[]
+export interface AgentSessions {
+  agent_name: string;  // 'ЕПоЗ', 'Общий чат' и т.д.
+  agent_id: string;    // 'epoz', 'chat', 'ocr', 'tech_rag'
+  sessions: Session[];
+}
+
+export interface AllAgentsSessions {
+  agents_list: AgentSessions[];
+  getAllAgentsSessions: () => Promise<AgentSessions[]>;
 }

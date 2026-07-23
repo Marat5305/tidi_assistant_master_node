@@ -759,17 +759,37 @@ class ApiClient {
   }
 
 
-  async allAgentsSessions(): Promise<{agent_name: string, sessions: Session[]}[]> {
-    const all_agents: {agent_name: string, sessions: Session[]}[] = [];
-    AGENTS.forEach(async (agent) => {
-      const sessions = await listSessions(agent.id);
-      all_agents.push({
-        agent_name: agent.id,
-        sessions: sessions
-      })
-    })
-    return all_agents;
+  async allAgentsSessions(): Promise<{agent_name: string, agent_id: string, sessions: Session[]}[]> {
+  try {
+    // Создаём массив промисов для параллельного выполнения
+    const promises = AGENTS.map(async (agent) => {
+      try {
+        const sessions = await this.listSessions(agent.id);
+        return {
+          agent_name: agent.name,  // Человеческое название (ЕПоЗ, Общий чат и т.д.)
+          agent_id: agent.id,      // Технический ID (epoz, chat, ocr, tech_rag)
+          sessions: sessions
+        };
+      } catch (error) {
+        console.warn(`⚠️ Не удалось загрузить сессии для агента ${agent.name}:`, error);
+        return {
+          agent_name: agent.name,
+          agent_id: agent.id,
+          sessions: [] // Возвращаем пустой массив при ошибке
+        };
+      }
+    });
+    
+    // Ждём выполнения всех промисов
+    const allAgentsData = await Promise.all(promises);
+    
+    console.log('✅ Загружены сессии всех агентов:', allAgentsData);
+    return allAgentsData;
+  } catch (error) {
+    console.error('❌ Ошибка в allAgentsSessions:', error);
+    throw error;
   }
+}
 
   /**
    * Получить сообщения сессии
