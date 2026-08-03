@@ -53,6 +53,7 @@ export const useChatStore = create<ChatStore>()(
             agentId: null,
             currentSessionId: null,
             sessions: [],
+            messages: [WELCOME_MESSAGE]
           });
           return;
         }
@@ -156,15 +157,62 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
+      // src/store/chatStore.ts - обновите метод setActiveSession
+
+      // src/store/chatStore.ts - обновите метод setActiveSession
+
+      // src/store/chatStore.ts - обновите метод setActiveSession
+
       setActiveSession: async (sessionId: string) => {
-        const { sessions, agentId } = get();
-        const session = sessions.find((s) => s.id === sessionId);
+        const { sessions, agentId, agents_list } = get();
+
+        // Ищем сессию сначала в текущих сессиях
+        let session = sessions.find((s) => s.id === sessionId);
+        let foundAgentId = agentId;
+
+        // Если не нашли, ищем в agents_list
+        if (!session && Array.isArray(agents_list)) {
+          for (const agent of agents_list) {
+            // Проверяем, что sessions существует и является массивом
+            if (agent && Array.isArray(agent.sessions)) {
+              const found = agent.sessions.find((s) => s.id === sessionId);
+              if (found) {
+                session = found;
+                foundAgentId = agent.agent_id;
+                break;
+              }
+            }
+          }
+        }
 
         if (!session) {
+          console.warn('❌ Сессия не найдена:', sessionId);
           set({ error: "Сессия не найдена" });
           return;
         }
 
+        // Если сессия принадлежит другому агенту, переключаем агента
+        if (foundAgentId && foundAgentId !== agentId) {
+          console.log('🔄 Переключаемся на агента:', foundAgentId);
+
+          // Устанавливаем нового агента и текущую сессию
+          set({
+            agentId: foundAgentId,
+            currentSessionId: sessionId,
+            activeCitations: [],
+            showCitationsPanel: false,
+            error: null,
+            isMasterMode: false,
+          });
+
+          // Загружаем сессии нового агента
+          await get().loadSessions();
+          // Загружаем сообщения сессии
+          await get().loadSessionMessages(sessionId);
+          return;
+        }
+
+        // Если агент тот же, просто активируем сессию
         set({
           currentSessionId: sessionId,
           activeCitations: [],
@@ -209,6 +257,48 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
+      // deleteSession: async (sessionId: string) => {
+      //   const { agentId } = get();
+      //   if (!agentId) {
+      //     console.warn('ℹ️ Agent ID не установлен, пропускаем удаление');
+      //     return;
+      //   }
+
+      //   set({ isLoading: true, error: null });
+
+      //   try {
+      //     await apiClient.deleteSession(agentId, sessionId);
+
+      //     set((state) => {
+      //       const filteredSessions = state.sessions.filter(
+      //         (s) => s.id !== sessionId,
+      //       );
+      //       const isActiveSession = state.currentSessionId === sessionId;
+
+      //       return {
+      //         sessions: filteredSessions,
+      //         currentSessionId:
+      //           isActiveSession && filteredSessions.length > 0
+      //             ? filteredSessions[0].id
+      //             : isActiveSession
+      //               ? null
+      //               : state.currentSessionId,
+      //         messages: isActiveSession ? [WELCOME_MESSAGE] : state.messages,
+      //         isLoading: false,
+      //         isMasterMode: isActiveSession ? true : state.isMasterMode,
+      //       };
+      //     });
+
+      //     const newState = get();
+      //     if (newState.currentSessionId && agentId) {
+      //       await get().loadSessionMessages(newState.currentSessionId);
+      //     }
+      //   } catch (error) {
+      //     const errorMessage =
+      //       error instanceof Error ? error.message : "Ошибка удаления сессии";
+      //     set({ error: errorMessage, isLoading: false });
+      //   }
+      // },
       deleteSession: async (sessionId: string) => {
         const { agentId } = get();
         if (!agentId) {
@@ -254,9 +344,11 @@ export const useChatStore = create<ChatStore>()(
 
       // === Работа с сообщениями ===
 
-      loadSessionMessages: async (sessionId: string) => {
+      loadSessionMessages: async (sessionId: string, agentIdOverride?: string) => {
         const { agentId } = get();
-        if (!agentId) {
+        const targetAgentId = agentIdOverride || agentId;
+
+        if (!targetAgentId) {
           console.warn('ℹ️ Agent ID не установлен, пропускаем загрузку сообщений');
           return;
         }
@@ -265,7 +357,7 @@ export const useChatStore = create<ChatStore>()(
 
         try {
           const messages = await apiClient.getSessionMessages(
-            agentId,
+            targetAgentId,
             sessionId,
           );
 
@@ -273,8 +365,8 @@ export const useChatStore = create<ChatStore>()(
             id: msg.id,
             role: msg.role,
             content: msg.content,
-            threadId: msg.session_id,
-            sessionId: msg.session_id,
+            threadId: msg.session_id || sessionId,
+            sessionId: msg.session_id || sessionId,
             timestamp: Date.now(),
             created_at: msg.created_at || new Date().toISOString(),
             status: "sent" as const,

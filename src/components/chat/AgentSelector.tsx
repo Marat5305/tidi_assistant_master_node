@@ -1,92 +1,73 @@
 // src/components/chat/AgentSelector.tsx
-import { useEffect, useState, useRef } from 'react';
+import { useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
-import { AGENTS } from '../../config/agents';
+import { ChevronDown, Check } from 'lucide-react';
 
-export function AgentSelector() {
-  const agents_list = useChatStore((state) => state.agents_list);
-  const getAllAgentsSessions = useChatStore((state) => state.getAllAgentsSessions);
-  const agentId = useChatStore((state) => state.agentId);
-  const setAgentId = useChatStore((state) => state.setAgentId);
-  const setMasterMode = useChatStore((state) => state.setMasterMode);
-  const setStreaming = useChatStore((state) => state.setStreaming);
-  const clearMessages = useChatStore((state) => state.clearMessages);
+interface AgentSelectorProps {
+  selectedFilterAgentId?: string | null;
+  onFilterChange?: (agentId: string | null) => void;
+}
 
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  const initialLoadDone = useRef(false);
+export function AgentSelector({ selectedFilterAgentId, onFilterChange }: AgentSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const agentsList = useChatStore((state) => state.agents_list);
 
-  useEffect(() => {
-    if (!initialLoadDone.current) {
-      initialLoadDone.current = true;
-      getAllAgentsSessions();
-    }
-  }, []);
+  // Определяем, какой агент выбран для отображения в селекте
+  const displayAgentId = selectedFilterAgentId !== undefined ? selectedFilterAgentId : null;
 
-  useEffect(() => {
-    if (agentId) {
-      setSelectedAgentId(agentId);
-    } else {
-      setSelectedAgentId('all');
-    }
-  }, [agentId]);
-
-  const agentsWithSessions = AGENTS.map(agent => {
-    const agentData = agents_list.find(item => item.agent_id === agent.id);
-    return {
-      ...agent,
-      sessionsCount: agentData?.sessions?.length || 0
-    };
-  });
-
-  const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newAgentId = event.target.value;
-    setSelectedAgentId(newAgentId);
-
-    setStreaming(false);
-    clearMessages();
-    setMasterMode(true);
-
-    if (newAgentId !== 'all') {
-      // Выбран конкретный агент - загружаем его сессии
-      setAgentId(newAgentId);
-    } else {
-      // Выбраны все агенты - показываем все сессии из agents_list
-      const allSessions = agents_list.flatMap(agent => agent.sessions);
-
-      useChatStore.setState({
-        agentId: null,
-        currentSessionId: null,
-        sessions: allSessions,
-      });
-    }
+  const getAgentName = (agentId: string | null) => {
+    if (!agentId) return 'Все агенты';
+    const agent = agentsList.find(a => a.agent_id === agentId);
+    return agent?.agent_name || agentId;
   };
 
-  const displayAgents = agentsWithSessions.filter(
-    agent => agent.id !== 'ocr' && agent.id !== 'tech_rag'
-  );
-  // const displayAgents = agentsWithSessions;
-
-  const totalSessions = agentsWithSessions.reduce((sum, a) => sum + a.sessionsCount, 0);
+  const handleSelect = (agentId: string | null) => {
+    if (onFilterChange) {
+      onFilterChange(agentId);
+    }
+    setIsOpen(false);
+  };
 
   return (
-    <div className="mb-4">
-      <select
-        value={selectedAgentId}
-        onChange={handleAgentChange}
-        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 
-                   text-gray-500 hover:border-[var(--color-accent)] 
-                   hover:text-[var(--color-accent)] transition-all
-                   bg-[var(--color-surface)] cursor-pointer"
+    <div className="relative mb-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-accent)] rounded-lg flex items-center justify-between hover:bg-[var(--color-accent)]/5 transition-colors"
       >
-        <option value="all">
-          Все агенты ({totalSessions})
-        </option>
-        {displayAgents.map((agent) => (
-          <option key={agent.id} value={agent.id}>
-            {agent.name} ({agent.sessionsCount})
-          </option>
-        ))}
-      </select>
+        <span className="truncate">{getAgentName(displayAgentId)}</span>
+        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-surface)] border border-[var(--color-accent)] rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+          <div className="p-1">
+            {/* Опция "Все агенты" */}
+            {/* <button
+              onClick={() => handleSelect(null)}
+              className={`w-full px-3 py-2 text-sm text-left rounded-md flex items-center justify-between hover:bg-[var(--color-accent)]/10 transition-colors ${
+                displayAgentId === null ? 'bg-[var(--color-accent)]/10' : ''
+              }`}
+            >
+              <span>Все агенты</span>
+              {displayAgentId === null && <Check size={16} className="text-[var(--color-accent)]" />}
+            </button> */}
+
+            {/* Список агентов */}
+            {agentsList.map((agent) => (
+              <button
+                key={agent.agent_id}
+                onClick={() => handleSelect(agent.agent_id)}
+                className={`w-full px-3 py-2 text-sm text-left rounded-md flex items-center justify-between hover:bg-[var(--color-accent)]/10 transition-colors ${
+                  displayAgentId === agent.agent_id ? 'bg-[var(--color-accent)]/10' : ''
+                }`}
+              >
+                <span>{agent.agent_name}</span>
+                {displayAgentId === agent.agent_id && <Check size={16} className="text-[var(--color-accent)]" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

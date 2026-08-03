@@ -141,7 +141,7 @@ export interface ChatActions {
   deleteSession: (sessionId: string) => Promise<void>;
 
   // Работа с сообщениями
-  loadSessionMessages: (sessionId: string) => Promise<void>;
+  loadSessionMessages: (sessionId: string, agentIdOverride?: string) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   sendMessageStream: (
     text: string,
@@ -215,7 +215,7 @@ export interface ChatActions {
   deleteSession: (sessionId: string) => Promise<void>;
 
   // Работа с сообщениями
-  loadSessionMessages: (sessionId: string) => Promise<void>;
+  loadSessionMessages: (sessionId: string, agentIdOverride?: string) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   sendMessageStream: (
     text: string,

@@ -1,4 +1,4 @@
-import { Wrench, Wallet, BookOpenCheck } from 'lucide-react';
+import { Wrench, Wallet, ListIndentIncrease } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface AgentConfig {
@@ -9,6 +9,12 @@ export interface AgentConfig {
 }
 
 export const AGENTS: AgentConfig[] = [
+  {
+    id: '',
+    name: 'Все агенты',
+    description: 'Все агенты',
+    icon: ListIndentIncrease,
+  },
   {
     id: 'epoz',
     name: 'ЕПоЗ',
@@ -22,12 +28,12 @@ export const AGENTS: AgentConfig[] = [
     icon: Wallet,
 
   },
-  {
-    id: 'ocr',
-    name: 'Распознавание изображений',
-    description: 'Распознавание документов',
-    icon: BookOpenCheck,
-  },
+  // {
+  //   id: 'ocr',
+  //   name: 'Распознавание изображений',
+  //   description: 'Распознавание документов',
+  //   icon: BookOpenCheck,
+  // },
   {
     id: 'tech_rag',
     name: 'RAG по технической документации',
