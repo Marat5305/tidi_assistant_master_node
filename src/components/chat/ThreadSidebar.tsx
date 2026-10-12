@@ -91,7 +91,7 @@ export function ThreadSidebar() {
       await setActiveThread(threadId);
 
       // Обновляем список сессий всех агентов
-      await getAllAgentsSessions();
+      // await getAllAgentsSessions();
 
       console.log('✅ Сессия активирована:', threadId);
     } catch (error) {
