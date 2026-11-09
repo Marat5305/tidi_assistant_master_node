@@ -1,85 +1,57 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// src/types/chat.ts
-// export interface Citation {
-//   id: string;
-//   text: string;
-//   source: string;
-//   page?: number;
-//   url?: string;
-//   relevanceScore: number;
-// }
+import type { LucideIcon } from 'lucide-react';
+
+export interface Conversation {
+  id: string;
+  rag_id: string;
+  name?: string;
+  model: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  threadId: string;
+  conversation_id: string;
+  timestamp: number;
+  created_at?: string;
+  status: 'sent' | 'error' | 'pending';
+  citations?: Citation[];
+  completion_id?: string;
+}
+
+export interface Citation {
+  id: string;          // обязательный — используется как key/data-attr/аргумент
+  number: number;      // порядковый номер для бейджа
+  title?: string;      // заголовок источника
+  snippet?: string;    // краткий текст / выдержка
+  url?: string;        // ссылка
+  source?: string;     // (опционально) исходное поле с бэка
+  text?: string;       // (опционально) полный текст
+}
 
 export interface FileAttachment {
   id: string;
   name: string;
   size: number;
   type: string;
-  url?: string;
-  status: FileStatus;
+  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
   progress: number;
-  error?: string;
+  file?: File;
+  fileId?: string;          // <-- id из uploadFile (file-85b365de-...)
+  previewUrl?: string;
   extractedText?: string;
-  // 🆕 ПОЛЯ ДЛЯ ПРЕВЬЮ
-  file?: File; // Оригинальный файл
-  previewUrl?: string; // Временный URL для отображения
-}
-
-export interface Citation {
-  id: string;
-  number: number;
-  title: string;
-  url?: string;
-  snippet: string;
-}
-
-export interface Message {
-  id: string;
-  threadId: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  citations?: Citation[];
-  attachments?: FileAttachment[];
-  timestamp: number;
-  status: "sending" | "sent" | "streaming" | "error";
-  tokenCount?: number;
-  sessionId: string;
-  created_at: string;
-  suggestions?: SuggestionAction[];
-}
-
-export interface Thread {
-  id: string;
-  title: string;
-  lastMessage?: string;
-  messages: Message[];
-  createdAt: number;
-  updatedAt: number;
-  isPinned?: boolean;
-  contextTokens?: number;
-}
-
-export interface StreamChunk {
-  type: "text" | "citation" | "error" | "done" | "metadata";
-  content?: string;
-  citation?: Citation;
   error?: string;
-  metadata?: {
-    tokensUsed?: number;
-    model?: string;
-    threadId?: string;
-  };
+  url?: string;             // оставьте, если где-то ещё используется
 }
 
-export interface ChatRequest {
-  threadId: string;
-  message: string;
-  attachments?: File[];
-  contextMessages?: Array<{ role: Message["role"]; content: string }>;
-  options?: {
-    temperature?: number;
-    maxTokens?: number;
-    topP?: number;
-  };
+export interface SuggestionAction {
+  id: string;
+  label: string;
+  prompt: string;
+  icon?: LucideIcon;
 }
 
 export interface VirtualScrollData {
@@ -89,171 +61,78 @@ export interface VirtualScrollData {
   offsetY: number;
 }
 
-export interface StreamParserResult {
-  chunks: StreamChunk[];
-  remainingBuffer: string;
-}
-
-// Тип для кнопки-подсказки
-export interface SuggestionAction {
-  id: string;
-  label: string; // Текст на кнопке, например "Разверни подробнее"
-  prompt: string; // Что отправить при клике, например "Разверни, пожалуйста, подробнее этот ответ"
-}
-
-// Дополнительные типы для нового API
-export interface Session {
-  id: string;
-  // name?: string;
-  title: string;
-  // agent_id: string;
-  created_at?: string;
-  updated_at?: string;
+export interface ModelsConversationsEntry {
+  model_name: string;
+  model: string;
+  conversations: Conversation[];
 }
 
 export interface ChatState {
-  // Состояние для нового API
-  agentId: string | null;
-  sessions: Session[];
-  currentSessionId: string | null;
-  firstRequest: boolean;
-
-  // Состояние чата
+  model: string | null;
+  conversations: Conversation[];
+  currentConversation_id: string | null;
   messages: Message[];
   isStreaming: boolean;
   streamingMessage: string;
   activeCitations: Citation[];
   showCitationsPanel: boolean;
   error: string | null;
-
-  // UI состояние
   isLoading: boolean;
   isMasterMode: boolean;
-}
-
-export interface ChatActions {
-  // Управление агентом и сессиями
-  setAgentId: (agentId: string | null) => void;
-  createSession: () => Promise<string>;
-  loadSessions: () => Promise<void>;
-  setActiveSession: (sessionId: string) => Promise<void>;
-  renameSession: (sessionId: string, name: string) => Promise<void>;
-  deleteSession: (sessionId: string) => Promise<void>;
-
-  // Работа с сообщениями
-  loadSessionMessages: (sessionId: string, agentIdOverride?: string) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
-  sendMessageStream: (
-    text: string,
-    onChunk?: (chunk: string) => void,
-  ) => Promise<void>;
-  clearMessages: () => void;
-  // Smart Chat методы
-  smartChat: (text: string, context?: any) => Promise<void>;
-  smartChatStream: (
-    text: string,
-    onChunk?: (chunk: string) => void,
-  ) => Promise<void>;
-
-  // Обратная связь
-  // setFeedback: (messageId: string, rating: 'positive' | 'negative', comment?: string) => Promise<void>;
-  setFeedback: (
-    messageId: string,
-    vote: number,
-    comment?: string,
-  ) => Promise<void>;
-  getFeedback: (messageId: string) => Promise<any>;
-  deleteFeedback: (messageId: string) => Promise<void>;
-
-  // Управление цитатами
-  setCitations: (citations: Citation[]) => void;
-  toggleCitationsPanel: () => void;
-
-  // Управление состоянием
-  setStreaming: (isStreaming: boolean) => void;
-  setError: (error: string | null) => void;
-  setMasterMode: (enabled: boolean) => void;
-}
-
-export type FileStatus =
-  | "pending"
-  | "uploading"
-  | "processing"
-  | "completed"
-  | "error";
-
-export interface ChatState {
-  // Состояние для нового API
-  agentId: string | null;
-  sessions: Session[];
-  currentSessionId: string | null;
-
-  // Состояние чата
-  messages: Message[];
-  isStreaming: boolean;
-  streamingMessage: string;
-  activeCitations: Citation[];
-  showCitationsPanel: boolean;
-  error: string | null;
-
-  // UI состояние
-  isLoading: boolean;
-  isMasterMode: boolean;
-
-  // 🆕 Состояние для файлов
   uploadingFiles: FileAttachment[];
+  models_list: ModelsConversationsEntry[];
+  abortController: AbortController | null;
+  completionId: string | null;
 }
 
 export interface ChatActions {
-  // Управление агентом и сессиями
-  setAgentId: (agentId: string | null) => void;
-  createSession: () => Promise<string>;
-  loadSessions: () => Promise<void>;
-  getAllAgentsSessions: () => Promise<void>;
-  setActiveSession: (sessionId: string) => Promise<void>;
-  renameSession: (sessionId: string, name: string) => Promise<void>;
-  deleteSession: (sessionId: string) => Promise<void>;
+  setModel: (model: string | null) => void;
+  createConversation: () => Promise<string | undefined>;
+  loadConversations: () => Promise<void>;
+  setActiveConversation: (conversation_id: string) => Promise<void>;
+  renameConversation: (conversation_id: string, name: string) => Promise<void>;
+  deleteConversation: (conversation_id: string) => Promise<void>;
+  loadConversationMessages: (
+    conversation_id: string,
+    modelOverride?: string,
+  ) => Promise<void>;
 
-  // Работа с сообщениями
-  loadSessionMessages: (sessionId: string, agentIdOverride?: string) => Promise<void>;
+  addMessage: (message: Message) => void;
+  appendToStreamingMessage: (chunk: string) => void;
+  finalizeStreamingMessage: (finalMessage: Message) => void;
+  setIsLoading: (isLoading: boolean) => void;
+
   sendMessage: (text: string) => Promise<void>;
   sendMessageStream: (
     text: string,
     onChunk?: (chunk: string) => void,
   ) => Promise<void>;
-  clearMessages: () => void;
 
-  // Smart Chat методы
   smartChat: (text: string, context?: any) => Promise<void>;
   smartChatStream: (
     text: string,
     onChunk?: (chunk: string) => void,
   ) => Promise<void>;
+  stopStreaming: () => void;
 
-  // Обратная связь
-  setFeedback: (
-    messageId: string,
-    vote: number,
-    comment?: string,
-  ) => Promise<void>;
-  getFeedback: (messageId: string) => Promise<any>;
+  clearMessages: () => void;
+
+  setFeedback: (messageId: string, vote: number, comment?: string) => Promise<void>;
+  getFeedback: (messageId: string) => Promise<any | null>;
   deleteFeedback: (messageId: string) => Promise<void>;
 
-  // Управление цитатами
   setCitations: (citations: Citation[]) => void;
   toggleCitationsPanel: () => void;
 
-  // Управление состоянием
   setStreaming: (isStreaming: boolean) => void;
   setError: (error: string | null) => void;
   setMasterMode: (enabled: boolean) => void;
 
-  // 🆕 Управление файлами
   addFile: (file: File) => Promise<void>;
   updateFileProgress: (fileId: string, progress: number) => void;
   updateFileStatus: (
     fileId: string,
-    status: FileAttachment["status"],
+    status: FileAttachment['status'],
     error?: string,
   ) => void;
   updateFileExtractedText: (fileId: string, text: string) => void;
@@ -262,17 +141,32 @@ export interface ChatActions {
   processFile: (fileId: string) => Promise<void>;
   retryFile: (fileId: string) => Promise<void>;
   uploadPendingFiles: () => Promise<void>;
+  createRAG: (
+    name: string,
+    description: string | null,
+    files?: File[],
+  ) => Promise<
+    | { ok: true; ragId: string; documents: unknown }
+    | { ok: false; error: string }
+  >;
 }
 
-
-// Сессии всех агентов
-export interface AgentSessions {
-  agent_name: string;  // 'ЕПоЗ', 'Общий чат' и т.д.
-  agent_id: string;    // 'epoz', 'chat', 'ocr', 'tech_rag'
-  sessions: Session[];
+export interface AllModelsConversations {
+  models_list: ModelsConversationsEntry[];
+  getAllModelsConversations: () => Promise<ModelsConversationsEntry[]>;
 }
 
-export interface AllAgentsSessions {
-  agents_list: AgentSessions[];
-  getAllAgentsSessions: () => Promise<AgentSessions[]>;
+export interface ChatResponse {
+  message_id: string;
+  content: string;
+  conversation_id: string;
+  created_at?: string;
+}
+
+export interface ApiMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at?: string;
 }

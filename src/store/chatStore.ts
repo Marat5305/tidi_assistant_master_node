@@ -1,396 +1,290 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/store/chatStore.ts
-import { create } from "zustand";
-import { devtools } from "zustand/middleware";
-import { apiClient } from "../services/api";
-import type { Message, Citation, ChatState, ChatActions } from "../types/chat";
-import { generateId } from "../utils/id";
-import { validateFile } from "../config/ocr";
-import type { FileAttachment } from "../types/chat";
-import type { AllAgentsSessions } from "../types/chat";
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+import { apiClient } from '../services/api';
+import type {
+  Message,
+  Citation,
+  ChatState,
+  ChatActions,
+  AllModelsConversations,
+  FileAttachment,
+} from '../types/chat';
+import { generateId } from '../utils/id';
+import { validateFile } from '../config/ocr';
 
-type ChatStore = ChatState & ChatActions & AllAgentsSessions;
+type ChatStore = ChatState & ChatActions & AllModelsConversations;
 
 const WELCOME_MESSAGE: Message = {
-  id: "welcome",
-  role: "assistant",
-  content: "Привет! Я твой AI-помощник. Задай вопрос или загрузи файл.",
-  threadId: "",
-  sessionId: "",
+  id: 'welcome',
+  role: 'assistant',
+  content: 'Привет! Я твой AI-помощник. Задай вопрос или загрузи файл.',
+  threadId: '',
+  conversation_id: '',
   timestamp: Date.now(),
   created_at: new Date().toISOString(),
-  status: "sent",
+  status: 'sent',
 };
 
 export const useChatStore = create<ChatStore>()(
   devtools(
     (set, get) => ({
       // === Начальное состояние ===
-      agentId: null,
-      sessions: [],
-      currentSessionId: null,
+      model: null,
+      conversations: [],
+      currentConversation_id: null,
       messages: [WELCOME_MESSAGE],
       isStreaming: false,
-      streamingMessage: "",
+      streamingMessage: '',
       activeCitations: [],
       showCitationsPanel: true,
       error: null,
       isLoading: false,
-      // isMasterMode: true,
       isMasterMode: false,
       uploadingFiles: [],
-      agents_list: [],
+      models_list: [],
+      abortController: null,
 
-      // === Управление агентом и сессиями ===
+      // === Управление моделью и беседами ===
 
-      // В chatStore.ts
-      setAgentId: (agentId: string) => {
-        const previousAgentId = get().agentId;
+      setModel: (model: string | null) => {
+        const previousModel = get().model;
 
-        if (!agentId) {
+        if (!model) {
           set({
-            agentId: null,
-            currentSessionId: null,
-            sessions: [],
-            messages: [WELCOME_MESSAGE]
+            model: null,
+            currentConversation_id: null,
+            conversations: [],
+            messages: [WELCOME_MESSAGE],
           });
           return;
         }
 
-        set({ agentId });
+        set({ model });
 
-        // Загружаем сессии если агент изменился
-        if (agentId !== previousAgentId) {
-          console.log('🔄 [setAgentId] Загружаем сессии для агента:', agentId);
-          get().loadSessions();
+        if (model !== previousModel) {
+          get().loadConversations();
         }
       },
 
-      createSession: async () => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('❌ Agent ID не установлен, сессия не создана');
+      createConversation: async () => {
+        const { model } = get();
+        if (!model) {
+          console.warn('❌ Model не установлен');
           return;
         }
-
         set({ isLoading: true, error: null });
-
         try {
-          const session = await apiClient.createSession(agentId);
-
+          const conversation = await apiClient.createConversation(model);
           set((state) => ({
-            sessions: [session, ...state.sessions],
-            currentSessionId: session.id,
+            conversations: [conversation, ...state.conversations],
+            currentConversation_id: conversation.id,
             messages: [WELCOME_MESSAGE],
             isLoading: false,
             isMasterMode: false,
           }));
-
-          return session.id;
+          return conversation.id;
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка создания сессии";
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка создания беседы';
+          set({ error: msg, isLoading: false });
           throw error;
         }
       },
 
-      loadSessions: async () => {
-        const { agentId, isLoading } = get();
-
-        if (isLoading) {
-          console.log('⏳ Загрузка сессий уже выполняется, пропускаем...');
-          return;
-        }
-
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем загрузку сессий');
-          return;
-        }
+      loadConversations: async () => {
+        const { model, isLoading } = get();
+        if (isLoading) return;
+        if (!model) return;
 
         set({ isLoading: true, error: null });
-
         try {
-          const sessions = await apiClient.listSessions(agentId);
+          const conversations = await apiClient.listConversations(model);
+          set({ conversations, isLoading: false });
 
-          set({
-            sessions,
-            isLoading: false,
-          });
-
-          if (sessions.length > 0 && !get().currentSessionId) {
-            await get().setActiveSession(sessions[0].id);
+          if (conversations.length > 0 && !get().currentConversation_id) {
+            await get().setActiveConversation(conversations[0].id);
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка загрузки сессий";
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка загрузки бесед';
+          set({ error: msg, isLoading: false });
         }
       },
 
-      getAllAgentsSessions: async () => {
+      getAllModelsConversations: async () => {
         set({ isLoading: true, error: null });
-
         try {
-          const list = await apiClient.allAgentsSessions();
-
-          const hasSessions = list.some(
-            agent => agent.sessions && agent.sessions.length > 0
-          );
-
-          if (!hasSessions) {
-            console.log('⚠️ Нет сессий ни у одного агента');
-          }
-
-          set({
-            agents_list: list,
-            isLoading: false
-          });
-
+          const list = await apiClient.allModelsConversations();
+          set({ models_list: list, isLoading: false });
           return list;
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка загрузки сессий";
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка загрузки бесед';
+          set({ error: msg, isLoading: false });
           throw error;
         }
       },
 
-      // src/store/chatStore.ts - обновите метод setActiveSession
+      setActiveConversation: async (conversation_id: string) => {
+        const { conversations, model, models_list } = get();
 
-      // src/store/chatStore.ts - обновите метод setActiveSession
+        let conversation = conversations.find((c) => c.id === conversation_id);
+        let foundModel = model;
 
-      // src/store/chatStore.ts - обновите метод setActiveSession
-
-      setActiveSession: async (sessionId: string) => {
-        const { sessions, agentId, agents_list } = get();
-
-        // Ищем сессию сначала в текущих сессиях
-        let session = sessions.find((s) => s.id === sessionId);
-        let foundAgentId = agentId;
-
-        // Если не нашли, ищем в agents_list
-        if (!session && Array.isArray(agents_list)) {
-          for (const agent of agents_list) {
-            // Проверяем, что sessions существует и является массивом
-            if (agent && Array.isArray(agent.sessions)) {
-              const found = agent.sessions.find((s) => s.id === sessionId);
-              if (found) {
-                session = found;
-                foundAgentId = agent.agent_id;
-                break;
-              }
+        if (!conversation && Array.isArray(models_list)) {
+          for (const entry of models_list) {
+            const found = entry.conversations?.find(
+              (c) => c.id === conversation_id,
+            );
+            if (found) {
+              conversation = found;
+              foundModel = entry.model;
+              break;
             }
           }
         }
 
-        if (!session) {
-          console.warn('❌ Сессия не найдена:', sessionId);
-          set({ error: "Сессия не найдена" });
+        if (!conversation) {
+          set({ error: 'Беседа не найдена' });
           return;
         }
 
-        // Если сессия принадлежит другому агенту, переключаем агента
-        if (foundAgentId && foundAgentId !== agentId) {
-          console.log('🔄 Переключаемся на агента:', foundAgentId);
-
-          // Устанавливаем нового агента и текущую сессию
+        if (foundModel && foundModel !== model) {
           set({
-            agentId: foundAgentId,
-            currentSessionId: sessionId,
+            model: foundModel,
+            currentConversation_id: conversation_id,
             activeCitations: [],
             showCitationsPanel: false,
             error: null,
             isMasterMode: false,
           });
-
-          // Загружаем сессии нового агента
-          await get().loadSessions();
-          // Загружаем сообщения сессии
-          await get().loadSessionMessages(sessionId);
+          await get().loadConversations();
+          await get().loadConversationMessages(conversation_id, foundModel);
           return;
         }
 
-        // Если агент тот же, просто активируем сессию
         set({
-          currentSessionId: sessionId,
+          currentConversation_id: conversation_id,
           activeCitations: [],
           showCitationsPanel: false,
           error: null,
           isMasterMode: false,
         });
 
-        if (agentId) {
-          await get().loadSessionMessages(sessionId);
+        if (model) {
+          await get().loadConversationMessages(conversation_id);
         }
       },
 
-      renameSession: async (sessionId: string, name: string) => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем переименование');
-          return;
-        }
+      renameConversation: async (conversation_id: string, name: string) => {
+        const { model } = get();
+        if (!model) return;
 
         set({ isLoading: true, error: null });
-
         try {
-          const updatedSession = await apiClient.renameSession(
-            agentId,
-            sessionId,
+          const updated = await apiClient.renameConversation(
+            model,
+            conversation_id,
             name,
           );
-
           set((state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === sessionId ? updatedSession : s,
+            conversations: state.conversations.map((c) =>
+              c.id === conversation_id ? updated : c,
             ),
             isLoading: false,
           }));
         } catch (error) {
-          const errorMessage =
+          const msg =
             error instanceof Error
               ? error.message
-              : "Ошибка переименования сессии";
-          set({ error: errorMessage, isLoading: false });
+              : 'Ошибка переименования беседы';
+          set({ error: msg, isLoading: false });
         }
       },
 
-      // deleteSession: async (sessionId: string) => {
-      //   const { agentId } = get();
-      //   if (!agentId) {
-      //     console.warn('ℹ️ Agent ID не установлен, пропускаем удаление');
-      //     return;
-      //   }
-
-      //   set({ isLoading: true, error: null });
-
-      //   try {
-      //     await apiClient.deleteSession(agentId, sessionId);
-
-      //     set((state) => {
-      //       const filteredSessions = state.sessions.filter(
-      //         (s) => s.id !== sessionId,
-      //       );
-      //       const isActiveSession = state.currentSessionId === sessionId;
-
-      //       return {
-      //         sessions: filteredSessions,
-      //         currentSessionId:
-      //           isActiveSession && filteredSessions.length > 0
-      //             ? filteredSessions[0].id
-      //             : isActiveSession
-      //               ? null
-      //               : state.currentSessionId,
-      //         messages: isActiveSession ? [WELCOME_MESSAGE] : state.messages,
-      //         isLoading: false,
-      //         isMasterMode: isActiveSession ? true : state.isMasterMode,
-      //       };
-      //     });
-
-      //     const newState = get();
-      //     if (newState.currentSessionId && agentId) {
-      //       await get().loadSessionMessages(newState.currentSessionId);
-      //     }
-      //   } catch (error) {
-      //     const errorMessage =
-      //       error instanceof Error ? error.message : "Ошибка удаления сессии";
-      //     set({ error: errorMessage, isLoading: false });
-      //   }
-      // },
-      deleteSession: async (sessionId: string) => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем удаление');
-          return;
-        }
+      deleteConversation: async (conversation_id: string) => {
+        const { model } = get();
+        if (!model) return;
 
         set({ isLoading: true, error: null });
-
         try {
-          await apiClient.deleteSession(agentId, sessionId);
+          await apiClient.deleteConversation(model, conversation_id);
 
           set((state) => {
-            const filteredSessions = state.sessions.filter(
-              (s) => s.id !== sessionId,
+            const filtered = state.conversations.filter(
+              (c) => c.id !== conversation_id,
             );
-            const isActiveSession = state.currentSessionId === sessionId;
-
+            const isActive = state.currentConversation_id === conversation_id;
             return {
-              sessions: filteredSessions,
-              currentSessionId:
-                isActiveSession && filteredSessions.length > 0
-                  ? filteredSessions[0].id
-                  : isActiveSession
+              conversations: filtered,
+              currentConversation_id:
+                isActive && filtered.length > 0
+                  ? filtered[0].id
+                  : isActive
                     ? null
-                    : state.currentSessionId,
-              messages: isActiveSession ? [WELCOME_MESSAGE] : state.messages,
+                    : state.currentConversation_id,
+              messages: isActive ? [WELCOME_MESSAGE] : state.messages,
               isLoading: false,
-              isMasterMode: isActiveSession ? true : state.isMasterMode,
+              isMasterMode: isActive ? true : state.isMasterMode,
             };
           });
 
           const newState = get();
-          if (newState.currentSessionId && agentId) {
-            await get().loadSessionMessages(newState.currentSessionId);
+          if (newState.currentConversation_id && model) {
+            await get().loadConversationMessages(
+              newState.currentConversation_id,
+            );
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка удаления сессии";
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка удаления беседы';
+          set({ error: msg, isLoading: false });
         }
       },
 
-      // === Работа с сообщениями ===
+      // === Сообщения ===
 
-      loadSessionMessages: async (sessionId: string, agentIdOverride?: string) => {
-        const { agentId } = get();
-        const targetAgentId = agentIdOverride || agentId;
-
-        if (!targetAgentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем загрузку сообщений');
-          return;
-        }
+      loadConversationMessages: async (
+        conversation_id: string,
+        modelOverride?: string,
+      ) => {
+        const { model } = get();
+        const targetModel = modelOverride || model;
+        if (!targetModel) return;
 
         set({ isLoading: true, error: null });
-
         try {
-          const messages = await apiClient.getSessionMessages(
-            targetAgentId,
-            sessionId,
+          const messages = await apiClient.getConversationMessages(
+            targetModel,
+            conversation_id,
           );
-
-          const formattedMessages: Message[] = messages.map((msg: any) => ({
-            id: msg.id,
-            role: msg.role,
-            content: msg.content,
-            threadId: msg.session_id || sessionId,
-            sessionId: msg.session_id || sessionId,
+          const formatted: Message[] = messages.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            threadId: m.conversation_id || conversation_id,
+            conversation_id: m.conversation_id || conversation_id,
             timestamp: Date.now(),
-            created_at: msg.created_at || new Date().toISOString(),
-            status: "sent" as const,
+            created_at: m.created_at || new Date().toISOString(),
+            status: 'sent',
           }));
 
-          const finalMessages =
-            formattedMessages.length > 0
-              ? formattedMessages
-              : [WELCOME_MESSAGE];
-
           set({
-            messages: finalMessages,
+            messages: formatted.length > 0 ? formatted : [WELCOME_MESSAGE],
             isLoading: false,
           });
         } catch (error) {
-          const errorMessage =
+          const msg =
             error instanceof Error
               ? error.message
-              : "Ошибка загрузки сообщений";
-          set({ error: errorMessage, isLoading: false });
+              : 'Ошибка загрузки сообщений';
+          set({ error: msg, isLoading: false });
         }
       },
 
-      // === Методы для работы со стримингом ===
+      // === Стриминг helpers ===
 
       addMessage: (message: Message) => {
         set((state) => ({
@@ -406,43 +300,36 @@ export const useChatStore = create<ChatStore>()(
       },
 
       finalizeStreamingMessage: (finalMessage: Message) => {
-        set((state) => {
-          const messagesWithoutStreaming = state.messages.filter(
-            (msg) => msg.id !== "streaming-temp",
-          );
-
-          return {
-            messages: [...messagesWithoutStreaming, finalMessage],
-            streamingMessage: "",
-            isStreaming: false,
-          };
-        });
+        set((state) => ({
+          messages: [
+            ...state.messages.filter((m) => m.id !== 'streaming-temp'),
+            finalMessage,
+          ],
+          streamingMessage: '',
+          isStreaming: false,
+        }));
       },
 
-      setIsLoading: (isLoading: boolean) => {
-        set({ isLoading });
-      },
+      setIsLoading: (isLoading: boolean) => set({ isLoading }),
 
-      // === Обычный чат (с агентом) ===
+      // === Обычный чат ===
 
       sendMessage: async (text: string) => {
-        const { agentId, currentSessionId } = get();
-
-        if (!agentId || !currentSessionId) {
-          console.warn('ℹ️ Не выбрана сессия или агент');
-          set({ error: 'Не выбрана сессия или агент' });
+        const { model, currentConversation_id } = get();
+        if (!model || !currentConversation_id) {
+          set({ error: 'Не выбрана беседа или модель' });
           return;
         }
 
         const userMessage: Message = {
           id: generateId(),
-          role: "user",
+          role: 'user',
           content: text,
-          threadId: currentSessionId,
-          sessionId: currentSessionId,
+          threadId: currentConversation_id,
+          conversation_id: currentConversation_id,
           timestamp: Date.now(),
           created_at: new Date().toISOString(),
-          status: "sent",
+          status: 'sent',
         };
 
         set((state) => ({
@@ -454,401 +341,421 @@ export const useChatStore = create<ChatStore>()(
 
         try {
           const response = await apiClient.chat(
-            agentId,
-            currentSessionId,
+            model,
+            currentConversation_id,
             text,
           );
-
           const assistantMessage: Message = {
             id: response.message_id || generateId(),
-            role: "assistant",
+            role: 'assistant',
             content: response.content,
-            threadId: response.session_id || currentSessionId,
-            sessionId: response.session_id || currentSessionId,
+            threadId: response.conversation_id || currentConversation_id,
+            conversation_id:
+              response.conversation_id || currentConversation_id,
             timestamp: Date.now(),
             created_at: response.created_at || new Date().toISOString(),
-            status: "sent",
+            status: 'sent',
           };
-
           set((state) => ({
             messages: [...state.messages, assistantMessage],
             isStreaming: false,
           }));
-
-          const { sessions } = get();
-          const currentSession = sessions.find(
-            (s) => s.id === currentSessionId,
-          );
-          if (currentSession && !currentSession.id) {
-            const title = text.slice(0, 30) + (text.length > 30 ? "..." : "");
-            await get().renameSession(currentSessionId, title);
-          }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : "Ошибка отправки сообщения";
-
-          const errorMessageObj: Message = {
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка отправки сообщения';
+          const errMsg: Message = {
             id: generateId(),
-            role: "assistant",
-            content: `❌ Ошибка: ${errorMessage}`,
-            threadId: currentSessionId,
-            sessionId: currentSessionId,
+            role: 'assistant',
+            content: `❌ Ошибка: ${msg}`,
+            threadId: currentConversation_id,
+            conversation_id: currentConversation_id,
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "error",
+            status: 'error',
           };
-
           set((state) => ({
-            messages: [...state.messages, errorMessageObj],
+            messages: [...state.messages, errMsg],
             isStreaming: false,
-            error: errorMessage,
+            error: msg,
           }));
         }
       },
 
-      sendMessageStream: async (text: string, onChunk?: (chunk: string) => void) => {
-        const { agentId, currentSessionId } = get();
-
-        if (!agentId || !currentSessionId) {
-          console.warn('ℹ️ Не выбрана сессия или агент');
-          set({ error: 'Не выбрана сессия или агент' });
+      sendMessageStream: async (
+        text: string,
+        onChunk?: (chunk: string) => void,
+      ) => {
+        const { model, currentConversation_id } = get();
+        if (!model || !currentConversation_id) {
+          set({ error: 'Не выбрана беседа или модель' });
           return;
         }
 
         const userMessage: Message = {
           id: generateId(),
-          role: "user",
+          role: 'user',
           content: text,
-          threadId: currentSessionId,
-          sessionId: currentSessionId,
+          threadId: currentConversation_id,
+          conversation_id: currentConversation_id,
           timestamp: Date.now(),
           created_at: new Date().toISOString(),
-          status: "sent",
+          status: 'sent',
         };
 
         set((state) => ({
           messages: [...state.messages, userMessage],
           isStreaming: true,
-          streamingMessage: "",
+          streamingMessage: '',
           isMasterMode: false,
           error: null,
         }));
 
-        let fullContent = "";
-        const abortController = new AbortController();
+        let fullContent = '';
+        const controller = new AbortController();
 
         try {
           const generator = apiClient.streamChat(
-            agentId,
-            currentSessionId,
+            model,
+            currentConversation_id,
             text,
             undefined,
-            abortController.signal,
+            controller.signal,
           );
-
           for await (const chunk of generator) {
             fullContent += chunk;
             set({ streamingMessage: fullContent });
-            if (onChunk) onChunk(chunk);
+            onChunk?.(chunk);
           }
-
-          if (!fullContent) {
-            throw new Error("Сервер вернул пустой ответ");
-          }
+          if (!fullContent) throw new Error('Сервер вернул пустой ответ');
 
           const assistantMessage: Message = {
             id: generateId(),
-            role: "assistant",
+            role: 'assistant',
             content: fullContent,
-            threadId: currentSessionId,
-            sessionId: currentSessionId,
+            threadId: currentConversation_id,
+            conversation_id: currentConversation_id,
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "sent",
+            status: 'sent',
           };
-
           set((state) => ({
             messages: [...state.messages, assistantMessage],
-            streamingMessage: "",
+            streamingMessage: '',
             isStreaming: false,
           }));
-
-          const { sessions } = get();
-          const currentSession = sessions.find(
-            (s) => s.id === currentSessionId,
-          );
-          if (currentSession && !currentSession.id) {
-            const title = text.slice(0, 30) + (text.length > 30 ? "..." : "");
-            await get().renameSession(currentSessionId, title);
-          }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка стриминга";
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка стриминга';
 
           if (fullContent) {
-            const assistantMessage: Message = {
+            const partial: Message = {
               id: generateId(),
-              role: "assistant",
+              role: 'assistant',
               content:
                 fullContent +
-                "\n\n⚠️ Соединение было прервано, но часть ответа сохранена.",
-              threadId: currentSessionId,
-              sessionId: currentSessionId,
+                '\n\n⚠️ Соединение было прервано, но часть ответа сохранена.',
+              threadId: currentConversation_id,
+              conversation_id: currentConversation_id,
               timestamp: Date.now(),
               created_at: new Date().toISOString(),
-              status: "sent",
+              status: 'sent',
             };
-
             set((state) => ({
-              messages: [...state.messages, assistantMessage],
-              streamingMessage: "",
+              messages: [...state.messages, partial],
+              streamingMessage: '',
               isStreaming: false,
             }));
             return;
           }
 
-          set({
-            streamingMessage: "",
-            isStreaming: false,
-            error: errorMessage,
-          });
-
-          const errorMessageObj: Message = {
+          set({ streamingMessage: '', isStreaming: false, error: msg });
+          const errMsg: Message = {
             id: generateId(),
-            role: "assistant",
-            content: `❌ Ошибка: ${errorMessage}`,
-            threadId: currentSessionId,
-            sessionId: currentSessionId,
+            role: 'assistant',
+            content: `❌ Ошибка: ${msg}`,
+            threadId: currentConversation_id,
+            conversation_id: currentConversation_id,
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "error",
+            status: 'error',
           };
-
-          set((state) => ({
-            messages: [...state.messages, errorMessageObj],
-          }));
+          set((state) => ({ messages: [...state.messages, errMsg] }));
         }
       },
 
-      // === SMART CHAT ===
+      // === Smart Chat ===
 
-      smartChat: async (text: string, context?: any) => {
+      smartChat: async (text: string, _context?: any) => {
         set({ isLoading: true, error: null });
-
         try {
-          const response = await apiClient.smartChat(
+          const response = await apiClient.chat(
+            get().model ?? 'auto',
+            get().currentConversation_id ?? 'smart-chat',
             text,
-            get().agentId!,
-            context,
           );
-
           const userMessage: Message = {
             id: generateId(),
-            role: "user",
+            role: 'user',
             content: text,
-            threadId: "smart-chat",
-            sessionId: "smart-chat",
+            threadId: get().currentConversation_id ?? 'smart-chat',
+            conversation_id: get().currentConversation_id ?? 'smart-chat',
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "sent",
+            status: 'sent',
           };
-
           const assistantMessage: Message = {
             id: response.message_id || generateId(),
-            role: "assistant",
+            role: 'assistant',
             content: response.content,
-            threadId: "smart-chat",
-            sessionId: "smart-chat",
+            threadId: get().currentConversation_id ?? 'smart-chat',
+            conversation_id: get().currentConversation_id ?? 'smart-chat',
             timestamp: Date.now(),
             created_at: response.created_at || new Date().toISOString(),
-            status: "sent",
+            status: 'sent',
           };
-
           set((state) => ({
             messages: [...state.messages, userMessage, assistantMessage],
             isLoading: false,
           }));
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка Smart Chat";
-          set({ error: errorMessage, isLoading: false });
-
-          const errorMessageObj: Message = {
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка Smart Chat';
+          set({ error: msg, isLoading: false });
+          const errMsg: Message = {
             id: generateId(),
-            role: "assistant",
-            content: `❌ Ошибка Smart Chat: ${errorMessage}`,
-            threadId: "smart-chat",
-            sessionId: "smart-chat",
+            role: 'assistant',
+            content: `❌ Ошибка Smart Chat: ${msg}`,
+            threadId: get().currentConversation_id ?? 'smart-chat',
+            conversation_id: get().currentConversation_id ?? 'smart-chat',
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "error",
+            status: 'error',
           };
-
-          set((state) => ({
-            messages: [...state.messages, errorMessageObj],
-          }));
+          set((state) => ({ messages: [...state.messages, errMsg] }));
         }
       },
 
-      smartChatStream: async (text: string, onChunk?: (chunk: string) => void) => {
-        const { agentId, currentSessionId, isMasterMode } = get();
+      smartChatStream: async (
+        text: string,
+        onChunk?: (chunk: string) => void,
+      ): Promise<void> => {
+        const { model, currentConversation_id, isMasterMode } = get();
 
         console.log('🚀 [chatStore.smartChatStream] Вызов:', {
           text: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
-          agentId: agentId || 'не указан',
-          currentSessionId: currentSessionId || 'не указан',
-          isMasterMode: isMasterMode
+          model: model || 'не указан',
+          currentConversation_id: currentConversation_id || 'не указан',
+          isMasterMode,
         });
+
+        const prevController = get().abortController;
+        if (prevController) {
+          try {
+            prevController.abort();
+          } catch {
+            /* noop */
+          }
+        }
+
+        const abortController = new AbortController();
 
         set({
           isLoading: true,
           error: null,
           isStreaming: true,
-          streamingMessage: "",
+          streamingMessage: '',
+          abortController,
+          completionId: null
         });
 
         const userMessage: Message = {
           id: generateId(),
-          role: "user",
+          role: 'user',
           content: text,
-          threadId: currentSessionId || 'smart-chat',
-          sessionId: currentSessionId || 'smart-chat',
+          threadId: currentConversation_id || 'smart-chat',
+          conversation_id: currentConversation_id || 'smart-chat',
           timestamp: Date.now(),
           created_at: new Date().toISOString(),
-          status: "sent",
+          status: 'sent',
         };
 
         set((state) => ({
           messages: [...state.messages, userMessage],
         }));
 
-        let fullContent = "";
-        const abortController = new AbortController();
+        let fullContent = '';
+        let sawDone = false;
 
-        try {
-          const apiAgentId = agentId || undefined;
-          const apiSessionId = currentSessionId || undefined;
-
-          console.log('📤 [chatStore] Параметры для API:', {
-            apiAgentId: apiAgentId || 'не передан',
-            apiSessionId: apiSessionId || 'не передан'
-          });
-
-          const generator = apiClient.smartChatStream(
-            text,
-            apiAgentId,
-            apiSessionId,
-            undefined,
-            abortController.signal
-          );
-
-          for await (const chunk of generator) {
-            console.log('📥 [chatStore] Получен чанк:', chunk);
-
-            if (chunk.agentId || chunk.sessionId) {
-              console.log('🎯 [chatStore] Получены метаданные:', {
-                newAgentId: chunk.agentId,
-                newSessionId: chunk.sessionId
-              });
-
-              const updates: Partial<ChatState> = {};
-
-              if (chunk.agentId) {
-                updates.agentId = chunk.agentId;
-                console.log('✅ [chatStore] Устанавливаем agentId:', chunk.agentId);
-              }
-
-              if (chunk.sessionId) {
-                updates.currentSessionId = chunk.sessionId;
-                console.log('✅ [chatStore] Устанавливаем sessionId:', chunk.sessionId);
-              }
-
-              updates.isMasterMode = false;
-              console.log('🔄 [chatStore] Выход из мастер-режима');
-
-              set(updates);
-
-              if (chunk.agentId && chunk.sessionId) {
-                try {
-                  await get().loadSessions();
-                } catch (err) {
-                  console.warn('⚠️ [chatStore] Не удалось загрузить сессии:', err);
-                }
-              }
-
-              continue;
-            }
-
-            if (chunk.token) {
-              fullContent += chunk.token;
-              set({ streamingMessage: fullContent });
-              if (onChunk) onChunk(chunk.token);
-            }
-
-            if (chunk.done) {
-              console.log('✅ [chatStore] Получен сигнал завершения');
-              break;
-            }
-          }
-
-          console.log('✅ [chatStore] Стрим завершен. Длина ответа:', fullContent.length);
-
-          if (!fullContent) {
-            throw new Error("Smart Chat вернул пустой ответ");
-          }
-
-          const { currentSessionId: finalSessionId } = get();
+        const finalizeAssistant = (content: string): Message => {
+          const { currentConversation_id, completionId } = get();
 
           const assistantMessage: Message = {
             id: generateId(),
-            role: "assistant",
-            content: fullContent,
-            threadId: finalSessionId || 'smart-chat',
-            sessionId: finalSessionId || 'smart-chat',
+            role: 'assistant',
+            content,
+            threadId: currentConversation_id || 'smart-chat',
+            conversation_id: currentConversation_id || 'smart-chat',
+            completion_id: completionId ?? undefined,
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "sent",
+            status: 'sent',
           };
 
           set((state) => ({
             messages: [...state.messages, assistantMessage],
-            streamingMessage: "",
+            streamingMessage: '',
             isStreaming: false,
             isLoading: false,
           }));
 
-          console.log('📝 [chatStore] Сообщение ассистента добавлено');
+          return assistantMessage;
+        };
+
+        try {
+          const apiModel = model || undefined;
+          const apiConversationId = currentConversation_id || undefined;
+
+          console.log('📤 [chatStore] Параметры для API:', {
+            apiModel: apiModel || 'не передан',
+            apiConversationId: apiConversationId || 'не передан',
+          });
+
+          const generator = apiClient.smartChatStream(
+            text,
+            apiModel,
+            apiConversationId,
+            undefined,
+            abortController.signal,
+          );
+
+          for await (const chunk of generator) {
+            // completion_id
+            if (chunk.completion_id) {
+              console.log('🆔 [chatStore] completion_id:', chunk.completion_id);
+              set({ completionId: chunk.completion_id });
+            }
+
+            // model / conversation_id
+            if (chunk.model || chunk.conversation_id) {
+              const updates: Partial<ChatState> = {};
+              if (chunk.model) updates.model = chunk.model;
+              if (chunk.conversation_id) updates.currentConversation_id = chunk.conversation_id;
+              updates.isMasterMode = false;
+              set(updates);
+
+              if (chunk.conversation_id) {
+                try { await get().loadConversations(); } catch (err) {
+                  console.warn('⚠️ loadConversations:', err);
+                }
+              }
+            }
+
+            // токен
+            if (chunk.token) {
+              fullContent += chunk.token;
+              set({ streamingMessage: fullContent });
+              onChunk?.(chunk.token);
+            }
+
+            // завершение
+            if (chunk.done) {
+              sawDone = true;
+              break;
+            }
+          }
+
+          if (abortController.signal.aborted) {
+            console.log('🛑 [chatStore] Стрим отменён пользователем');
+            if (fullContent) {
+              finalizeAssistant(fullContent);
+            } else {
+              set({
+                streamingMessage: '',
+                isStreaming: false,
+                isLoading: false,
+              });
+            }
+            return;
+          }
+
+          console.log(
+            '✅ [chatStore] Стрим завершен. Длина ответа:',
+            fullContent.length,
+          );
+
+          if (!fullContent) {
+            throw new Error('Smart Chat вернул пустой ответ');
+          }
+
+          if (!sawDone) {
+            console.log(
+              'ℹ️ [chatStore] [DONE]/finish_reason не получен, но стрим закрылся',
+            );
+          }
+
+          // finalizeAssistant(fullContent);
+
+
+
+
+
+          // финализируем сообщение и получаем его объект
+          const assistantMsg = finalizeAssistant(fullContent);
+
+          const completionId = assistantMsg.completion_id;
+          const agent_id = get().model;
+
+          if (completionId && agent_id) {
+            try {
+              const citations = await apiClient.getCompletionSources(agent_id, completionId);
+              if (citations.length > 0) {
+                set((state) => ({
+                  messages: state.messages.map((m) =>
+                    m.id === assistantMsg.id ? { ...m, citations } : m,
+                  ),
+                }));
+              }
+            } catch (err) {
+              console.warn('⚠️ Не удалось загрузить источники:', err);
+            }
+          }
+
+
+
+
 
         } catch (error) {
           console.error('❌ [chatStore.smartChatStream] Ошибка:', error);
 
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка Smart Chat';
+          const errorMessage =
+            error instanceof Error ? error.message : 'Ошибка Smart Chat';
+
+          const isAbort =
+            error instanceof Error &&
+            (error.name === 'AbortError' ||
+              /aborted|abort/i.test(error.message));
 
           if (fullContent) {
-            const assistantMessage: Message = {
-              id: generateId(),
-              role: 'assistant',
-              content: fullContent + '\n\n⚠️ Соединение было прервано, но часть ответа сохранена.',
-              threadId: currentSessionId || 'smart-chat',
-              sessionId: currentSessionId || 'smart-chat',
-              timestamp: Date.now(),
-              created_at: new Date().toISOString(),
-              status: "sent",
-            };
+            finalizeAssistant(
+              !isAbort
+                ? fullContent +
+                '\n\n⚠️ Соединение было прервано, но часть ответа сохранена.'
+                : fullContent,
+            );
+            return;
+          }
 
-            set((state) => ({
-              messages: [...state.messages, assistantMessage],
-              streamingMessage: "",
+          if (isAbort) {
+            set({
+              streamingMessage: '',
               isStreaming: false,
               isLoading: false,
-            }));
+            });
             return;
           }
 
           set({
-            streamingMessage: "",
+            streamingMessage: '',
             isStreaming: false,
             isLoading: false,
             error: errorMessage,
@@ -856,25 +763,53 @@ export const useChatStore = create<ChatStore>()(
 
           const errorMessageObj: Message = {
             id: generateId(),
-            role: "assistant",
+            role: 'assistant',
             content: `❌ ${errorMessage}`,
-            threadId: currentSessionId || 'smart-chat',
-            sessionId: currentSessionId || 'smart-chat',
+            threadId: currentConversation_id || 'smart-chat',
+            conversation_id: currentConversation_id || 'smart-chat',
             timestamp: Date.now(),
             created_at: new Date().toISOString(),
-            status: "error",
+            status: 'error',
           };
 
           set((state) => ({
             messages: [...state.messages, errorMessageObj],
           }));
+        } finally {
+          if (get().isStreaming) {
+            set({
+              isStreaming: false,
+              isLoading: false,
+              streamingMessage: '',
+            });
+          }
+          if (get().abortController === abortController) {
+            set({ abortController: null });
+          }
         }
+      },
+
+      stopStreaming: () => {
+        const controller = get().abortController;
+        if (controller) {
+          try {
+            controller.abort();
+          } catch {
+            /* noop */
+          }
+        }
+        set({
+          isStreaming: false,
+          isLoading: false,
+          streamingMessage: '',
+          abortController: null,
+        });
       },
 
       clearMessages: () => {
         set({
           messages: [WELCOME_MESSAGE],
-          streamingMessage: "",
+          streamingMessage: '',
           error: null,
           activeCitations: [],
         });
@@ -882,87 +817,123 @@ export const useChatStore = create<ChatStore>()(
 
       // === Обратная связь ===
 
-      setFeedback: async (messageId: string, vote: number, comment?: string) => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем отправку feedback');
+      setFeedback: async (
+        messageId: string,
+        vote: number,
+        comment?: string,
+      ) => {
+        const { model } = get();
+        if (!model) {
+          console.warn('ℹ️ Model не установлен, пропускаем feedback');
           return;
         }
 
         set({ isLoading: true, error: null });
-
         try {
-          await apiClient.setFeedback(agentId, messageId, vote, comment);
+          await apiClient.setFeedback(model, messageId, vote, comment);
           set({ isLoading: false });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки feedback';
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error
+              ? error.message
+              : 'Ошибка отправки feedback';
+          set({ error: msg, isLoading: false });
         }
       },
 
       getFeedback: async (messageId: string) => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем получение feedback');
+        const { model } = get();
+        if (!model) {
+          console.warn('ℹ️ Model не установлен, пропускаем feedback');
           return null;
         }
-
         try {
-          return await apiClient.getFeedback(agentId, messageId);
+          return await apiClient.getFeedback(model, messageId);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка получения feedback';
-          set({ error: errorMessage });
+          const msg =
+            error instanceof Error
+              ? error.message
+              : 'Ошибка получения feedback';
+          set({ error: msg });
           return null;
         }
       },
 
       deleteFeedback: async (messageId: string) => {
-        const { agentId } = get();
-        if (!agentId) {
-          console.warn('ℹ️ Agent ID не установлен, пропускаем удаление feedback');
+        const { model } = get();
+        if (!model) {
+          console.warn('ℹ️ Model не установлен, пропускаем feedback');
           return;
         }
 
         set({ isLoading: true, error: null });
-
         try {
-          await apiClient.deleteFeedback(agentId, messageId);
+          await apiClient.deleteFeedback(model, messageId);
           set({ isLoading: false });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Ошибка удаления feedback';
-          set({ error: errorMessage, isLoading: false });
+          const msg =
+            error instanceof Error
+              ? error.message
+              : 'Ошибка удаления feedback';
+          set({ error: msg, isLoading: false });
         }
       },
 
-      // === Управление цитатами ===
+      // === Цитаты ===
 
       setCitations: (citations: Citation[]) => {
-        if (citations) {
-          citations.forEach((citation) => {
-            set({ activeCitations: [...get().activeCitations, citation] });
-          });
-        }
+        if (!citations) return;
+        citations.forEach((citation) => {
+          set({ activeCitations: [...get().activeCitations, citation] });
+        });
       },
 
       toggleCitationsPanel: () => {
         set((state) => ({ showCitationsPanel: !state.showCitationsPanel }));
       },
 
-      // === Управление состоянием ===
+      // === Состояние ===
 
-      setStreaming: (isStreaming: boolean) => {
-        set({ isStreaming });
+      setStreaming: (isStreaming: boolean) => set({ isStreaming }),
+      setError: (error: string | null) => set({ error }),
+      setMasterMode: (enabled: boolean) => set({ isMasterMode: enabled }),
+
+      // RAG
+      // chatStore.tsx
+
+      createRAG: async (
+        name: string,
+        description: string | null,
+        files: File[] = [],
+      ): Promise<
+        | { ok: true; ragId: string; documents: unknown }
+        | { ok: false; error: string }
+      > => {
+        set({ isLoading: true, error: null });
+
+        try {
+          // 1. создаём набор
+          const { id: ragId } = await apiClient.createRAGSet({
+            name,
+            description: description ?? undefined,
+          });
+
+          // 2. заливаем файлы (если есть)
+          let documents: unknown = null;
+          if (files.length > 0) {
+            documents = await apiClient.uploadRAGDocuments(ragId, files);
+          }
+
+          set({ isLoading: false });
+          return { ok: true, ragId, documents };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Ошибка создания RAG';
+          set({ error: msg, isLoading: false });
+          return { ok: false, error: msg };
+        }
       },
 
-      setError: (error: string | null) => {
-        set({ error });
-      },
-
-      setMasterMode: (enabled: boolean) => {
-        set({ isMasterMode: enabled });
-      },
-
-      // === Управление файлами ===
+      // === Файлы ===
 
       addFile: async (file: File) => {
         const validation = validateFile(file);
@@ -979,10 +950,10 @@ export const useChatStore = create<ChatStore>()(
           name: file.name,
           size: file.size,
           type: file.type,
-          status: "pending",
+          status: 'pending',
           progress: 0,
-          file: file,
-          previewUrl: previewUrl,
+          file,
+          previewUrl,
         };
 
         if (!(window as any).__pendingFiles) {
@@ -1005,7 +976,7 @@ export const useChatStore = create<ChatStore>()(
 
       updateFileStatus: (
         fileId: string,
-        status: FileAttachment["status"],
+        status: FileAttachment['status'],
         error?: string,
       ) => {
         set((state) => ({
@@ -1035,7 +1006,9 @@ export const useChatStore = create<ChatStore>()(
         }
 
         set((state) => ({
-          uploadingFiles: state.uploadingFiles.filter((f) => f.id !== fileId),
+          uploadingFiles: state.uploadingFiles.filter(
+            (f) => f.id !== fileId,
+          ),
         }));
       },
 
@@ -1052,19 +1025,19 @@ export const useChatStore = create<ChatStore>()(
 
         const file = (window as any).__pendingFiles?.[fileId];
         if (!file) {
-          console.error("❌ Файл не найден:", fileId);
-          get().updateFileStatus(fileId, "error", "Файл не найден");
+          console.error('❌ Файл не найден:', fileId);
+          get().updateFileStatus(fileId, 'error', 'Файл не найден');
           return;
         }
 
-        get().updateFileStatus(fileId, "processing");
+        get().updateFileStatus(fileId, 'processing');
 
         try {
           const text = await apiClient.ocrFile(file, (progress) =>
             get().updateFileProgress(fileId, progress),
           );
 
-          get().updateFileStatus(fileId, "completed");
+          get().updateFileStatus(fileId, 'completed');
           get().updateFileProgress(fileId, 100);
           get().updateFileExtractedText(fileId, text);
 
@@ -1073,23 +1046,21 @@ export const useChatStore = create<ChatStore>()(
 
             setTimeout(() => {
               const currentFiles = get().uploadingFiles;
-              const fileExists = currentFiles.some((f) => f.id === fileId);
-
-              if (fileExists) {
+              if (currentFiles.some((f) => f.id === fileId)) {
                 get().removeFile(fileId);
               }
             }, 1000);
           } else {
             get().updateFileStatus(
               fileId,
-              "error",
-              "Текст не найден на изображении",
+              'error',
+              'Текст не найден на изображении',
             );
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Ошибка обработки файла";
-          get().updateFileStatus(fileId, "error", errorMessage);
+          const msg =
+            error instanceof Error ? error.message : 'Ошибка обработки файла';
+          get().updateFileStatus(fileId, 'error', msg);
         } finally {
           delete (window as any).__pendingFiles?.[fileId];
         }
@@ -1097,9 +1068,9 @@ export const useChatStore = create<ChatStore>()(
 
       retryFile: async (fileId: string) => {
         const fileEntry = get().uploadingFiles.find((f) => f.id === fileId);
-        if (!fileEntry || fileEntry.status !== "error") return;
+        if (!fileEntry || fileEntry.status !== 'error') return;
 
-        get().updateFileStatus(fileId, "uploading");
+        get().updateFileStatus(fileId, 'uploading');
         get().updateFileProgress(fileId, 0);
         await get().processFile(fileId);
       },
@@ -1107,17 +1078,12 @@ export const useChatStore = create<ChatStore>()(
       uploadPendingFiles: async () => {
         const { uploadingFiles } = get();
         const pendingFiles = uploadingFiles.filter(
-          (f) => f.status === "pending",
+          (f) => f.status === 'pending',
         );
-
-        if (pendingFiles.length === 0) {
-          return;
-        }
-
-        const file = pendingFiles[0];
-        await get().processFile(file.id);
+        if (pendingFiles.length === 0) return;
+        await get().processFile(pendingFiles[0].id);
       },
     }),
-    { name: "chat-store" },
+    { name: 'chat-store' },
   ),
 );

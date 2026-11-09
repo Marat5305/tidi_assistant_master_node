@@ -1,18 +1,17 @@
 // src/utils/threadGrouping.ts
-import type { Session } from '../types/chat';
-// import type { Thread } from '../types/chat';
+import type { Conversation } from '../types/chat';
 
 export type ThreadGroup = {
-  title: string;      // "Сегодня", "Вчера", "На этой неделе", "Ранее"
-  threads: Session[];
+  title: string; // "Сегодня", "Вчера", "На этой неделе", "Ранее"
+  threads: Conversation[];
 };
 
 /**
- * Группирует треды по временным меткам
- * @param threads - массив тредов
- * @returns массив групп для рендеринга
+ * Группирует беседы по датам.
+ * @param threads — массив бесед
+ * @returns массив непустых групп для рендеринга
  */
-export function groupThreadsByDate(threads: Session[]): ThreadGroup[] {
+export function groupThreadsByDate(threads: Conversation[]): ThreadGroup[] {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
@@ -27,26 +26,43 @@ export function groupThreadsByDate(threads: Session[]): ThreadGroup[] {
     { title: 'Ранее', threads: [] },
   ];
 
-  if (threads != null && threads.length != 0) {
-    threads.forEach((thread) => {
-      if (thread.id == 'ocr') {
-        return;
-      }
-      const threadDate = new Date(thread.updated_at || thread.created_at!);
-      const compareDate = new Date(threadDate.getFullYear(), threadDate.getMonth(), threadDate.getDate());
-
-      if (compareDate.getTime() === today.getTime()) {
-        groups[0].threads.push(thread);
-      } else if (compareDate.getTime() === yesterday.getTime()) {
-        groups[1].threads.push(thread);
-      } else if (compareDate > weekAgo) {
-        groups[2].threads.push(thread);
-      } else {
-        groups[3].threads.push(thread);
-      }
-    });
+  if (!threads || threads.length === 0) {
+    return [];
   }
 
+  for (const thread of threads) {
+    // Пропускаем OCR-беседы, если они не должны показываться в истории
+    if (thread.model === 'ocr') continue;
+
+    // Если нет ни updated_at, ни created_at — отправляем в «Ранее»
+    const rawDate = thread.updated_at ?? thread.created_at;
+    if (!rawDate) {
+      groups[3].threads.push(thread);
+      continue;
+    }
+
+    const threadDate = new Date(rawDate);
+    if (isNaN(threadDate.getTime())) {
+      groups[3].threads.push(thread);
+      continue;
+    }
+
+    const compareDate = new Date(
+      threadDate.getFullYear(),
+      threadDate.getMonth(),
+      threadDate.getDate(),
+    );
+
+    if (compareDate.getTime() === today.getTime()) {
+      groups[0].threads.push(thread);
+    } else if (compareDate.getTime() === yesterday.getTime()) {
+      groups[1].threads.push(thread);
+    } else if (compareDate >= weekAgo) {
+      groups[2].threads.push(thread);
+    } else {
+      groups[3].threads.push(thread);
+    }
+  }
 
   // Возвращаем только непустые группы
   return groups.filter((group) => group.threads.length > 0);

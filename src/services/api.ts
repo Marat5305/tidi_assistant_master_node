@@ -1,678 +1,16 @@
-// /* eslint-disable @typescript-eslint/no-explicit-any */
-// // src/services/api.ts
-// import type { Session } from '../types/chat';
-
-// // const DEFAULT_API_URL = 'http://89.109.54.73:8005/api';
-// const api_url_response = await fetch('/config.json');
-// const json = await api_url_response.json();
-// // const DEFAULT_API_URL = await api_url_response.json();
-// const DEFAULT_API_URL = json.API_BASE_URL;
-
-// // const DEFAULT_API_URL = import.meta.env.VITE_API_URL;
-
-// // Типы для API
-// // export interface Session {
-// //   title: ReactNode;
-// //   lastMessage: import("react/jsx-runtime").JSX.Element;
-// //   id: string;
-// //   name?: string;
-// //   agent_id: string;
-// //   created_at?: string;
-// //   updated_at?: string;
-// // }
-
-// export interface ApiMessage {
-//   id: string;
-//   session_id: string;
-//   role: 'user' | 'assistant' | 'system';
-//   content: string;
-//   created_at?: string;
-// }
-
-// export interface Feedback {
-//   rating: 'positive' | 'negative' | null;
-//   comment?: string;
-//   created_at?: string;
-// }
-
-// export interface ChatResponse {
-//   message_id: string;
-//   content: string;
-//   session_id: string;
-//   created_at?: string;
-// }
-
-// class ApiClient {
-//   private readonly baseUrl: string;
-
-//   constructor(baseUrl?: string) {
-//     this.baseUrl = baseUrl ?? import.meta.env.VITE_API_URL ?? DEFAULT_API_URL;
-//   }
-
-//   private getHeaders(): HeadersInit {
-//     const headers: HeadersInit = {
-//       'Content-Type': 'application/json',
-//       'X-User-Id': '11111111-1111-1111-1111-111111111111'
-//     };
-
-//     if (typeof localStorage !== 'undefined') {
-//       const token = localStorage.getItem('auth_token');
-//       if (token) {
-//         headers['Authorization'] = `Bearer ${token}`;
-//       }
-//     }
-
-//     return headers;
-//   }
-
-//   private async handleResponse<T>(response: Response): Promise<T> {
-//     if (!response.ok) {
-//       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-//       try {
-//         const errorBody = await response.json();
-//         errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-//       } catch {
-//         // Если не удалось распарсить JSON, используем стандартное сообщение
-//       }
-//       throw new Error(errorMessage);
-//     }
-
-//     // Для DELETE запросов, которые не возвращают тело
-//     if (response.status === 204) {
-//       return {} as T;
-//     }
-
-//     return response.json() as Promise<T>;
-//   }
-
-//   // === Управление сессиями ===
-
-//   /**
-//    * Создать новую сессию для агента
-//    */
-//   async createSession(agentId: string): Promise<Session> {
-//     const response = await fetch(`${this.baseUrl}/agents/${agentId}/sessions`, {
-//       method: 'POST',
-//       headers: this.getHeaders(),
-//       body: JSON.stringify({ agentId })
-
-//     });
-//     return this.handleResponse<Session>(response);
-//   }
-
-//   /**
-//    * Получить список всех сессий агента
-//    */
-//   async listSessions(agentId: string): Promise<Session[]> {
-//     const response = await fetch(`${this.baseUrl}/agents/${agentId}/sessions`, {
-//       method: 'GET',
-//       headers: this.getHeaders(),
-//     });
-//     return this.handleResponse<Session[]>(response);
-//   }
-
-//   /**
-//    * Получить сообщения сессии
-//    */
-//   async getSessionMessages(agentId: string, sessionId: string): Promise<ApiMessage[]> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/messages`,
-//       {
-//         method: 'GET',
-//         headers: this.getHeaders(),
-//       }
-//     );
-//     return this.handleResponse<ApiMessage[]>(response);
-//   }
-
-//   /**
-//    * Переименовать сессию
-//    */
-//   async renameSession(agentId: string, sessionId: string, name: string): Promise<Session> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}`,
-//       {
-//         method: 'PATCH',
-//         headers: this.getHeaders(),
-//         body: JSON.stringify({ name }),
-//       }
-//     );
-//     return this.handleResponse<Session>(response);
-//   }
-
-//   /**
-//    * Удалить сессию
-//    */
-//   async deleteSession(agentId: string, sessionId: string): Promise<void> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}`,
-//       {
-//         method: 'DELETE',
-//         headers: this.getHeaders(),
-//       }
-//     );
-//     await this.handleResponse<void>(response);
-//   }
-
-//   // === Обратная связь ===
-
-//   /**
-//    * Установить обратную связь для сообщения
-//    */
-//   async setFeedback(
-//     agentId: string,
-//     messageId: string,
-//     // vote: 'positive' | 'negative',
-//     vote: number,
-//     comment?: string
-//   ): Promise<Feedback> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-//       {
-//         method: 'POST',
-//         headers: this.getHeaders(),
-//         body: JSON.stringify({ vote, comment }),
-//       }
-//     );
-//     return this.handleResponse<Feedback>(response);
-//   }
-
-//   /**
-//    * Получить обратную связь для сообщения
-//    */
-//   async getFeedback(agentId: string, messageId: string): Promise<Feedback> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-//       {
-//         method: 'GET',
-//         headers: this.getHeaders(),
-//       }
-//     );
-//     return this.handleResponse<Feedback>(response);
-//   }
-
-//   /**
-//    * Удалить обратную связь для сообщения
-//    */
-//   async deleteFeedback(agentId: string, messageId: string): Promise<void> {
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-//       {
-//         method: 'DELETE',
-//         headers: this.getHeaders(),
-//       }
-//     );
-//     await this.handleResponse<void>(response);
-//   }
-
-//   // === Чат ===
-
-//   /**
-//    * Отправить сообщение в сессию агента (без стриминга)
-//    */
-//   async chat(
-//     agentId: string,
-//     sessionId: string,
-//     message: string,
-//     context?: any
-//   ): Promise<ChatResponse> {
-
-//     if (!agentId || !sessionId) {
-//       if (import.meta.env.DEV) {
-//         console.log('Не выбрана сессия или агент');
-//       }
-//       // set({ error: 'Не выбрана сессия или агент' });
-//       // return;
-//     }
-//     const response = await fetch(
-//       `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/chat`,
-//       {
-//         method: 'POST',
-//         headers: this.getHeaders(),
-//         body: JSON.stringify({ message, context }),
-//       }
-//     );
-//     return this.handleResponse<ChatResponse>(response);
-//   }
-
-//   /**
-//    * Отправить сообщение в сессию агента (со стримингом)
-//    * Возвращает AsyncGenerator для потокового получения ответа
-//    */
-//   // src/services/api.ts
-
-//   /**
-//    * Отправить сообщение в сессию агента (со стримингом)
-//    * Возвращает AsyncGenerator для потокового получения ответа
-//    */
-//   // src/services/api.ts
-
-//   /**
-//    * Отправить сообщение в сессию агента (со стримингом)
-//    * Возвращает AsyncGenerator для потокового получения ответа
-//    */
-//   async *streamChat(
-//     agentId: string,
-//     sessionId: string,
-//     message: string,
-//     context?: any,
-//     signal?: AbortSignal
-//   ): AsyncGenerator<string, void, undefined> {
-//     const url = `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/chat`;
-
-//     const headers: HeadersInit = {
-//       'Content-Type': 'application/json',
-//       'X-User-Id': '11111111-1111-1111-1111-111111111111'
-//     };
-
-//     if (typeof localStorage !== 'undefined') {
-//       const token = localStorage.getItem('auth_token');
-//       if (token) {
-//         headers['Authorization'] = `Bearer ${token}`;
-//       }
-//     }
-
-//     // ДОБАВЛЯЕМ agent_id В ТЕЛО ЗАПРОСА КАК В SMARTCHAT
-//     const response = await fetch(url, {
-//       method: 'POST',
-//       headers,
-//       body: JSON.stringify({
-//         message,
-//         context,
-//         agent_id: agentId, // <-- ДОБАВИЛИ
-//         session_id: sessionId,
-//         stream: true
-//       }),
-//       signal,
-//     });
-
-//     if (!response.ok) {
-//       let errorMessage = `HTTP ${response.status}`;
-//       try {
-//         const errorBody = await response.json();
-//         errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-//       } catch {
-//         // Если не удалось распарсить JSON
-//       }
-//       throw new Error(errorMessage);
-//     }
-
-//     const reader = response.body?.getReader();
-//     if (!reader) {
-//       throw new Error('ReadableStream not supported in this environment');
-//     }
-
-//     const decoder = new TextDecoder();
-//     let buffer = '';
-
-//     try {
-//       while (true) {
-//         const { done, value } = await reader.read();
-
-//         if (done) {
-//           break;
-//         }
-
-//         buffer += decoder.decode(value, { stream: true });
-//         const lines = buffer.split('\n');
-//         buffer = lines.pop() || '';
-
-//         for (const line of lines) {
-//           const trimmedLine = line.trim();
-//           if (!trimmedLine) continue;
-//           if (trimmedLine === '') continue;
-
-//           if (trimmedLine.startsWith('data: ')) {
-//             const jsonStr = trimmedLine.slice(6).trim();
-
-//             if (jsonStr === '[DONE]') {
-//               return;
-//             }
-
-//             try {
-//               const parsed = JSON.parse(jsonStr);
-
-//               if (parsed.error) {
-//                 // НЕ ВЫБРАСЫВАЕМ ОШИБКУ, А ВОЗВРАЩАЕМ КАК ТЕКСТ
-//                 yield `⚠️ ${parsed.error}`;
-//                 continue;
-//               }
-
-//               if (parsed.chunks && Array.isArray(parsed.chunks)) {
-//                 for (const chunk of parsed.chunks) {
-//                   if (chunk.text) {
-//                     yield chunk.text;
-//                   }
-//                 }
-//               }
-
-//               if (parsed.text) {
-//                 yield parsed.text;
-//               }
-
-//               if (parsed.content) {
-//                 yield parsed.content;
-//               }
-//             } catch (e) {
-//               if (e instanceof Error && e.message.includes('Unexpected token')) {
-//                 continue;
-//               }
-//               throw e;
-//             }
-//           }
-//         }
-//       }
-//     } catch (error) {
-//       if (error instanceof Error && error.name === 'AbortError') {
-//         return;
-//       }
-//       throw error;
-//     } finally {
-//       try {
-//         reader.releaseLock();
-//       } catch {
-//         // Игнорируем
-//       }
-//     }
-//   }
-
-//   // === Smart Chat ===
-
-//   /**
-//    * Умный чат без привязки к конкретному агенту
-//    */
-//   async smartChat(message: string, agent_id: string, context?: any): Promise<ChatResponse> {
-//     const response = await fetch(`${this.baseUrl}/chat`, {
-//       method: 'POST',
-//       headers: this.getHeaders(),
-//       body: JSON.stringify({ message, agent_id, context }),
-//     });
-//     return this.handleResponse<ChatResponse>(response);
-//   }
-
-//   /**
-//    * Умный чат со стримингом
-//    */
-//   async *smartChatStream(
-//     message: string,
-//     agent_id: string,
-//     session_id: string | null,
-//     context?: any,
-//     signal?: AbortSignal
-//   ): AsyncGenerator<{ token?: string; citations?: string[]; message_id?: number; done?: boolean }, void, undefined> {
-//     const url = `${this.baseUrl}/chat`;
-
-//     const headers: HeadersInit = {
-//       'Content-Type': 'application/json',
-//       'X-User-Id': '11111111-1111-1111-1111-111111111111'
-//     };
-
-//     if (typeof localStorage !== 'undefined') {
-//       const token = localStorage.getItem('auth_token');
-//       if (token) {
-//         headers['Authorization'] = `Bearer ${token}`;
-//       }
-//     }
-
-//     const response = await fetch(url, {
-//       method: 'POST',
-//       headers,
-//       body: session_id != null
-//         ? JSON.stringify({ message, agent_id, session_id, context, stream: true })
-//         : JSON.stringify({ message, agent_id, context, stream: true }),
-//       signal,
-//     });
-
-//     if (!response.ok) {
-//       let errorMessage = `HTTP ${response.status}`;
-//       try {
-//         const errorBody = await response.json();
-//         errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-//       } catch {
-//         // Если не удалось распарсить JSON
-//       }
-//       throw new Error(errorMessage);
-//     }
-
-//     const reader = response.body?.getReader();
-//     if (!reader) {
-//       throw new Error('ReadableStream not supported in this environment');
-//     }
-
-//     const decoder = new TextDecoder();
-//     let buffer = '';
-//     // let citations: string[] = [];
-//     // let messageId: number | undefined;
-
-//     try {
-//       while (true) {
-//         const { done, value } = await reader.read();
-
-//         if (done) {
-//           break;
-//         }
-
-//         buffer += decoder.decode(value, { stream: true });
-//         const lines = buffer.split('\n');
-//         buffer = lines.pop() || '';
-
-//         for (const line of lines) {
-//           const trimmedLine = line.trim();
-//           if (!trimmedLine) continue;
-
-//           // Обработка SSE формата
-//           if (trimmedLine.startsWith('data: ')) {
-//             const jsonStr = trimmedLine.slice(6).trim();
-
-//             // Проверяем на завершение
-//             if (jsonStr === '[DONE]') {
-//               yield { done: true };
-//               return;
-//             }
-
-//             try {
-//               const parsed = JSON.parse(jsonStr);
-
-//               // Проверяем на ошибку
-//               if (parsed.error) {
-//                 throw new Error(parsed.error);
-//               }
-
-//               // 1. Обработка chunks (содержат текст и источники)
-//               // if (parsed.chunks && Array.isArray(parsed.chunks)) {
-//               //   const newCitations: string[] = [];
-//               //   let fullText = '';
-
-//               //   for (const chunk of parsed.chunks) {
-//               //     // Сохраняем текст
-//               //     if (chunk.text) {
-//               //       fullText += chunk.text;
-//               //     }
-
-//               //     // Сохраняем источник (цитату)
-//               //     if (chunk.source) {
-//               //       newCitations.push(chunk.source);
-//               //     }
-//               //   }
-
-//               //   // Обновляем общий список цитат
-//               //   if (newCitations.length > 0) {
-//               //     citations = [...new Set([...citations, ...newCitations])];
-//               //   }
-
-//               //   // Отдаем текст из чанков (если есть)
-//               //   if (fullText) {
-//               //     yield {
-//               //       token: fullText,
-//               //       citations: citations.length > 0 ? citations : undefined
-//               //     };
-//               //   }
-//               // }
-
-//               // 2. Обработка отдельных токенов (на уровне корня объекта)
-//               if (parsed.token !== undefined && parsed.token !== null) {
-//                 yield {
-//                   token: parsed.token,
-//                   // citations: citations.length > 0 ? citations : undefined
-//                 };
-//               }
-
-//               // 3. Обработка message_id (финальный ID сообщения)
-//               if (parsed.message_id !== undefined) {
-//                 yield {
-//                   message_id: parsed.message_id,
-//                   // citations: citations.length > 0 ? citations : undefined
-//                 };
-//               }
-
-//               // Отладочный вывод
-//               if (import.meta.env.DEV) {
-//                 console.log('SSE Message:', parsed);
-//               }
-
-//             } catch (e) {
-//               // Если ошибка парсинга JSON, игнорируем
-//               if (e instanceof Error && e.message.includes('Unexpected token')) {
-//                 continue;
-//               }
-//               throw e;
-//             }
-//           }
-//         }
-//       }
-//     } catch (error) {
-//       if (error instanceof Error && error.name === 'AbortError') {
-//         return;
-//       }
-//       throw error;
-//     } finally {
-//       try {
-//         reader.releaseLock();
-//       } catch {
-//         // Игнорируем
-//       }
-//     }
-//   }
-
-
-
-
-
-
-//   // === Загрузка файлов ===
-
-//   /**
-//    * Загрузить файл на сервер
-//    */
-//   async uploadFile(
-//     file: File,
-//     onProgress?: (progress: number) => void
-//   ): Promise<{ fileId: string; url: string }> {
-//     const formData = new FormData();
-//     formData.append('file', file);
-
-//     return new Promise((resolve, reject) => {
-//       const xhr = new XMLHttpRequest();
-
-//       xhr.upload.addEventListener('progress', (event) => {
-//         if (event.lengthComputable && onProgress) {
-//           const progress = Math.round((event.loaded / event.total) * 100);
-//           onProgress(progress);
-//         }
-//       });
-
-//       xhr.addEventListener('load', () => {
-//         if (xhr.status >= 200 && xhr.status < 300) {
-//           try {
-//             const response = JSON.parse(xhr.responseText) as {
-//               fileId: string;
-//               url: string;
-//             };
-//             resolve(response);
-//           } catch {
-//             reject(new Error('Invalid response format'));
-//           }
-//         } else {
-//           reject(new Error(`Upload failed: ${xhr.status}`));
-//         }
-//       });
-
-//       xhr.addEventListener('error', () => {
-//         reject(new Error('Network error during upload'));
-//       });
-
-//       xhr.addEventListener('abort', () => {
-//         reject(new DOMException('Upload aborted', 'AbortError'));
-//       });
-
-//       const token = typeof localStorage !== 'undefined'
-//         ? localStorage.getItem('auth_token')
-//         : null;
-
-//       if (token) {
-//         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-//       }
-
-//       xhr.open('POST', `${this.baseUrl}/upload`);
-//       xhr.send(formData);
-//     });
-//   }
-// }
-
-// // Создаем экземпляр клиента
-// export const apiClient = new ApiClient();
-
-// // Экспортируем отдельные функции для удобства
-// export const {
-//   createSession,
-//   listSessions,
-//   getSessionMessages,
-//   renameSession,
-//   deleteSession,
-//   setFeedback,
-//   getFeedback,
-//   deleteFeedback,
-//   chat,
-//   streamChat,
-//   smartChat,
-//   smartChatStream,
-//   uploadFile,
-// } = apiClient;
-
-
-
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/services/api.ts
 import { AGENTS } from '../config/agents';
-import type { Session } from '../types/chat';
+import type {
+  Conversation,
+  ApiMessage,
+  ChatResponse,
+  ModelsConversationsEntry,
+  Citation
+} from '../types/chat';
 
-// const DEFAULT_API_URL = 'http://89.109.54.73:8005/api';
 const api_url_response = await fetch('/config.json');
 const json = await api_url_response.json();
-// const DEFAULT_API_URL = await api_url_response.json();
-const DEFAULT_API_URL = json.API_BASE_URL;
-
-// const DEFAULT_API_URL = import.meta.env.VITE_API_URL;
-
-// Типы для API
-// export interface Session {
-//   title: ReactNode;
-//   lastMessage: import("react/jsx-runtime").JSX.Element;
-//   id: string;
-//   name?: string;
-//   agent_id: string;
-//   created_at?: string;
-//   updated_at?: string;
-// }
-
-export interface ApiMessage {
-  id: string;
-  session_id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  created_at?: string;
-}
+const DEFAULT_API_URL: string = json.API_BASE_URL;
 
 export interface Feedback {
   rating: 'positive' | 'negative' | null;
@@ -680,35 +18,33 @@ export interface Feedback {
   created_at?: string;
 }
 
-export interface ChatResponse {
-  message_id: string;
-  content: string;
-  session_id: string;
-  created_at?: string;
-}
-
-
-
 class ApiClient {
   private readonly baseUrl: string;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl ?? import.meta.env.VITE_API_URL ?? DEFAULT_API_URL;
+    this.baseUrl = baseUrl ?? (import.meta as any).env?.VITE_API_URL ?? DEFAULT_API_URL;
   }
 
   private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-User-Id': '11111111-1111-1111-1111-111111111111'
+      'X-User-Id': '11111111-1111-1111-1111-111111111111',
     };
-
     if (typeof localStorage !== 'undefined') {
       const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      if (token) headers['Authorization'] = `Bearer ${token}`;
     }
+    return headers;
+  }
 
+  private getHeadersRAGDocumentsUpload(): HeadersInit {
+    const headers: Record<string, string> = {
+      'X-User-Id': '11111111-1111-1111-1111-111111111111',
+    };
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
     return headers;
   }
 
@@ -718,249 +54,148 @@ class ApiClient {
       try {
         const errorBody = await response.json();
         errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-      } catch {
-        // Если не удалось распарсить JSON, используем стандартное сообщение
-      }
+      } catch { /* ignore */ }
       throw new Error(errorMessage);
     }
-
-    // Для DELETE запросов, которые не возвращают тело
-    if (response.status === 204) {
-      return {} as T;
-    }
-
+    if (response.status === 204) return {} as T;
     return response.json() as Promise<T>;
   }
 
-  // === Управление сессиями ===
+  // === Беседы ===
 
-  /**
-   * Создать новую сессию для агента
-   */
-  async createSession(agentId: string): Promise<Session> {
-    const response = await fetch(`${this.baseUrl}/agents/${agentId}/sessions`, {
+  async createConversation(
+    agent_id: string,
+    payload?: { name?: string; model?: string },
+  ): Promise<Conversation> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ agentId })
-
+      body: JSON.stringify(payload ?? {}),
     });
-    return this.handleResponse<Session>(response);
+    return this.handleResponse<Conversation>(res);
   }
 
-  /**
-   * Получить список всех сессий агента
-   */
-  async listSessions(agentId: string): Promise<Session[]> {
-    const response = await fetch(`${this.baseUrl}/agents/${agentId}/sessions`, {
+  async listConversations(agent_id: string): Promise<Conversation[]> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return this.handleResponse<Conversation[]>(res);
+  }
+
+  async allModelsConversations(): Promise<ModelsConversationsEntry[]> {
+    const promises = AGENTS.map(async (agent) => {
+      try {
+        const conversations = await this.listConversations(agent.id);
+        return { model_name: agent.name, model: agent.id, conversations };
+      } catch (error) {
+        console.warn(`⚠️ Беседы модели ${agent.name}:`, error);
+        return { model_name: agent.name, model: agent.id, conversations: [] };
+      }
+    });
+    return Promise.all(promises);
+  }
+
+
+
+  async getConversationMessages(
+    agent_id: string,
+    conversation_id: string,
+  ): Promise<ApiMessage[]> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}/messages`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return this.handleResponse<ApiMessage[]>(res);
+  }
+
+  async renameConversation(
+    agent_id: string,
+    conversation_id: string,
+    name: string,
+  ): Promise<Conversation> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ name }),
+    });
+    return this.handleResponse<Conversation>(res);
+  }
+
+  async deleteConversation(
+    agent_id: string,
+    conversation_id: string,
+  ): Promise<void> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    await this.handleResponse<void>(res);
+  }
+
+  // === Feedback ===
+
+  async setFeedback(model: string, messageId: string, vote: number, comment?: string): Promise<Feedback> {
+    // const response = await fetch(`${this.baseUrl}/models/${model}/messages/${messageId}/feedback`, {
+    const response = await fetch(`${this.baseUrl}/agents/${model}/v1/chat/completions/${messageId}/feedback`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ vote, comment }),
+    });
+    return this.handleResponse<Feedback>(response);
+  }
+
+  async getFeedback(model: string, messageId: string): Promise<Feedback> {
+    const response = await fetch(`${this.baseUrl}/models/${model}/messages/${messageId}/feedback`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
-    return this.handleResponse<Session[]>(response);
+    return this.handleResponse<Feedback>(response);
   }
 
-
-  async allAgentsSessions(): Promise<{agent_name: string, agent_id: string, sessions: Session[]}[]> {
-  try {
-    // Создаём массив промисов для параллельного выполнения
-    const promises = AGENTS.map(async (agent) => {
-      try {
-        const sessions = await this.listSessions(agent.id);
-        return {
-          agent_name: agent.name,  // Человеческое название (ЕПоЗ, Общий чат и т.д.)
-          agent_id: agent.id,      // Технический ID (epoz, chat, ocr, tech_rag)
-          sessions: sessions
-        };
-      } catch (error) {
-        console.warn(`⚠️ Не удалось загрузить сессии для агента ${agent.name}:`, error);
-        return {
-          agent_name: agent.name,
-          agent_id: agent.id,
-          sessions: [] // Возвращаем пустой массив при ошибке
-        };
-      }
+  async deleteFeedback(model: string, messageId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/models/${model}/messages/${messageId}/feedback`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
     });
-    
-    // Ждём выполнения всех промисов
-    const allAgentsData = await Promise.all(promises);
-    
-    console.log('✅ Загружены сессии всех агентов:', allAgentsData);
-    return allAgentsData;
-  } catch (error) {
-    console.error('❌ Ошибка в allAgentsSessions:', error);
-    throw error;
-  }
-}
-
-  /**
-   * Получить сообщения сессии
-   */
-  async getSessionMessages(agentId: string, sessionId: string): Promise<ApiMessage[]> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/messages`,
-      {
-        method: 'GET',
-        headers: this.getHeaders(),
-      }
-    );
-    return this.handleResponse<ApiMessage[]>(response);
-  }
-
-  /**
-   * Переименовать сессию
-   */
-  async renameSession(agentId: string, sessionId: string, name: string): Promise<Session> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}`,
-      {
-        method: 'PATCH',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ name }),
-      }
-    );
-    return this.handleResponse<Session>(response);
-  }
-
-  /**
-   * Удалить сессию
-   */
-  async deleteSession(agentId: string, sessionId: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}`,
-      {
-        method: 'DELETE',headers: this.getHeaders(),
-      }
-    );
-    await this.handleResponse<void>(response);
-  }
-
-  // === Обратная связь ===
-
-  /**
-   * Установить обратную связь для сообщения
-   */
-  async setFeedback(
-    agentId: string,
-    messageId: string,
-    // vote: 'positive' | 'negative',
-    vote: number,
-    comment?: string
-  ): Promise<Feedback> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-      {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ vote, comment }),
-      }
-    );
-    return this.handleResponse<Feedback>(response);
-  }
-
-  /**
-   * Получить обратную связь для сообщения
-   */
-  async getFeedback(agentId: string, messageId: string): Promise<Feedback> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-      {
-        method: 'GET',
-        headers: this.getHeaders(),
-      }
-    );
-    return this.handleResponse<Feedback>(response);
-  }
-
-  /**
-   * Удалить обратную связь для сообщения
-   */
-  async deleteFeedback(agentId: string, messageId: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/messages/${messageId}/feedback`,
-      {
-        method: 'DELETE',
-        headers: this.getHeaders(),
-      }
-    );
     await this.handleResponse<void>(response);
   }
 
   // === Чат ===
 
-  /**
-   * Отправить сообщение в сессию агента (без стриминга)
-   */
   async chat(
-    agentId: string,
-    sessionId: string,
+    model: string,
+    conversationId: string,
     message: string,
-    context?: any
+    context?: any,
   ): Promise<ChatResponse> {
-
-    if (!agentId || !sessionId) {
-      if (import.meta.env.DEV) {
-        console.log('Не выбрана сессия или агент');
-      }
-      // set({ error: 'Не выбрана сессия или агент' });
-      // return;
-    }
     const response = await fetch(
-      `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/chat`,
+      `${this.baseUrl}/models/${model}/conversations/${conversationId}/chat`,
       {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify({ message, context }),
-      }
+      },
     );
     return this.handleResponse<ChatResponse>(response);
   }
 
-  /**
-   * Отправить сообщение в сессию агента (со стримингом)
-   * Возвращает AsyncGenerator для потокового получения ответа
-   */
-  // src/services/api.ts
-
-  /**
-   * Отправить сообщение в сессию агента (со стримингом)
-   * Возвращает AsyncGenerator для потокового получения ответа
-   */
-  // src/services/api.ts
-
-  /**
-   * Отправить сообщение в сессию агента (со стримингом)
-   * Возвращает AsyncGenerator для потокового получения ответа
-   */
   async *streamChat(
-    agentId: string,
-    sessionId: string,
+    model: string,
+    conversationId: string,
     message: string,
     context?: any,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): AsyncGenerator<string, void, undefined> {
-    const url = `${this.baseUrl}/agents/${agentId}/sessions/${sessionId}/chat`;
-
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'X-User-Id': '11111111-1111-1111-1111-111111111111'
-    };
-
-    if (typeof localStorage !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-
-    // ДОБАВЛЯЕМ agent_id В ТЕЛО ЗАПРОСА КАК В SMARTCHAT
+    const url = `${this.baseUrl}/models/${model}/conversations/${conversationId}/chat`;
     const response = await fetch(url, {
       method: 'POST',
-      headers,
+      headers: this.getHeaders(),
       body: JSON.stringify({
         message,
         context,
-        agent_id: agentId, // <-- ДОБАВИЛИ
-        session_id: sessionId,
-        stream: true
+        model,
+        conversation_id: conversationId,
+        stream: true,
       }),
       signal,
     });
@@ -968,18 +203,14 @@ class ApiClient {
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
       try {
-        const errorBody = await response.json();
-        errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-      } catch {
-        // Если не удалось распарсить JSON
-      }
+        const body = await response.json();
+        errorMessage = body?.message ?? body?.error ?? errorMessage;
+      } catch { /* ignore */ }
       throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('ReadableStream not supported in this environment');
-    }
+    if (!reader) throw new Error('ReadableStream not supported');
 
     const decoder = new TextDecoder();
     let buffer = '';
@@ -987,569 +218,421 @@ class ApiClient {
     try {
       while (true) {
         const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
+        if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (trimmedLine === '') continue;
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
 
-          if (trimmedLine.startsWith('data: ')) {
-            const jsonStr = trimmedLine.slice(6).trim();
+          const jsonStr = trimmed.slice(6).trim();
+          if (jsonStr === '[DONE]') return;
 
-            if (jsonStr === '[DONE]') {
-              return;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.error) {
+              yield `⚠️ ${parsed.error}`;
+              continue;
             }
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-
-              if (parsed.error) {
-                // НЕ ВЫБРАСЫВАЕМ ОШИБКУ, А ВОЗВРАЩАЕМ КАК ТЕКСТ
-                yield `⚠️ ${parsed.error}`;
-                continue;
-              }
-
-              if (parsed.chunks && Array.isArray(parsed.chunks)) {
-                for (const chunk of parsed.chunks) {
-                  if (chunk.text) {
-                    yield chunk.text;
-                  }
-                }
-              }
-
-              if (parsed.text) {
-                yield parsed.text;
-              }
-
-              if (parsed.content) {
-                yield parsed.content;
-              }
-            } catch (e) {
-              if (e instanceof Error && e.message.includes('Unexpected token')) {
-                continue;
-              }
-              throw e;
+            if (parsed.chunks && Array.isArray(parsed.chunks)) {
+              for (const c of parsed.chunks) if (c.text) yield c.text;
             }
+            if (parsed.text) yield parsed.text;
+            if (parsed.content) yield parsed.content;
+
+            // OpenAI-совместимый fallback
+            const delta = parsed?.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string' && delta.length > 0) yield delta;
+          } catch (e) {
+            if (e instanceof Error && e.message.includes('Unexpected token')) continue;
+            throw e;
           }
         }
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return;
-      }
+      if (error instanceof Error && error.name === 'AbortError') return;
       throw error;
     } finally {
-      try {
-        reader.releaseLock();
-      } catch {
-        // Игнорируем
-      }
+      try { reader.releaseLock(); } catch { /* ignore */ }
     }
   }
 
   // === Smart Chat ===
 
-  /**
-   * Умный чат без привязки к конкретному агенту
-   */
-  async smartChat(message: string, agent_id: string, context?: any): Promise<ChatResponse> {
-    const response = await fetch(`${this.baseUrl}/chat`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ message, agent_id, context }),
-    });
-    return this.handleResponse<ChatResponse>(response);
-  }
-
-  /**
-     * Умный чат со стримингом
-     * Поддерживает три сценария:
-     * 1. {message} - только сообщение (роутинг)
-     * 2. {message, agent_id} - сообщение + агент (ручной выбор)
-     * 3. {message, agent_id, session_id} - сообщение + агент + сессия (продолжение)
-     */
-//     async *smartChatStream(
-//       message: string,
-//       agent_id?: string,
-//       session_id?: string | null,
-//       context?: any,
-//       signal?: AbortSignal
-//     ): AsyncGenerator<{ token?: string; citations?: string[]; message_id?: number; done?: boolean; agentId?: string; sessionId?: string }, void, undefined> {
-//       const url = `${this.baseUrl}/chat`;
-
-//       const headers: HeadersInit = {
-//         'Content-Type': 'application/json',
-//         'X-User-Id': '11111111-1111-1111-1111-111111111111'
-//       };
-
-//       if (typeof localStorage !== 'undefined') {
-//         const token = localStorage.getItem('auth_token');
-//         if (token) {
-//           headers['Authorization'] = `Bearer ${token}`;
-//         }
-//       }
-
-//       const body: any = { 
-//         message, 
-//         stream: true 
-//       };
-      
-//       if (agent_id) {
-//         body.agent_id = agent_id;
-//       }
-      
-//       if (session_id) {
-//         body.session_id = session_id;
-//       }
-      
-//       if (context) {
-//         body.context = context;
-//       }
-
-//       // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 1 ==========
-//       console.log('📤 [api.smartChatStream] Отправка запроса:', {
-//         url,
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': headers['Content-Type'],
-//           'X-User-Id': headers['X-User-Id'],
-//           'Authorization': headers['Authorization'] ? 'Bearer ***' : undefined
-//         },
-//         body: body,
-//         hasSignal: !!signal
-//       });
-//       // ===========================================
-
-//       const response = await fetch(url, {
-//         method: 'POST',
-//         headers,
-//         body: JSON.stringify(body),
-//         signal,
-//       });
-
-//       // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 2 ==========
-//       console.log('📨 [api.smartChatStream] Получен ответ:', {
-//         status: response.status,
-//         statusText: response.statusText,
-//         ok: response.ok,
-//         headers: Object.fromEntries(response.headers.entries())
-//       });
-//       // ==========================================
-
-//       // После получения ответа
-//       console.log('📨 [api.smartChatStream] Получен ответ:', {
-//         status: response.status,
-//         statusText: response.statusText,
-//         ok: response.ok,
-//       });
-
-//       // ========== 🔍 ЛОГИРУЕМ ВСЕ ЗАГОЛОВКИ ==========
-//       console.log('🔍 [api] ВСЕ заголовки ответа:');
-//       response.headers.forEach((value, key) => {
-//         console.log(`  ${key}: ${value}`);
-//       });
-//       // ===============================================
-
-//       // ========== ИЗВЛЕКАЕМ ЗАГОЛОВКИ СРАЗУ ПОСЛЕ FETCH ==========
-//       // const newAgentId = response.headers.get('x-agent-id');
-//       // const newSessionId = response.headers.get('x-session-id');
-
-//       // Отдаем метаданные ПЕРВЫМ СООБЩЕНИЕМ ДО ЧТЕНИЯ СТРИМА
-//       // if (newAgentId || newSessionId) {
-//       //   // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 4 ==========
-//       //   console.log('📣 [api.smartChatStream] Отправляем метаданные в поток:', {
-//       //     agentId: newAgentId || undefined,
-//       //     sessionId: newSessionId || undefined
-//       //   });
-//       //   // ===========================================
-        
-//       //   yield {
-//       //     agentId: newAgentId || undefined,
-//       //     sessionId: newSessionId || undefined,
-//       //     token: ''
-//       //   };
-//       // }
-
-//       // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 5 ==========
-//       console.log('📡 [api.smartChatStream] Начинаем чтение стрима...');
-//       // ===========================================
-
-//       if (!response.ok) {
-//         // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 6 ==========
-//         console.error('❌ [api.smartChatStream] Ошибка ответа:', {
-//           status: response.status,
-//           statusText: response.statusText
-//         });
-//         // ===========================================
-        
-//         let errorMessage = `HTTP ${response.status}`;
-//         try {
-//           const errorBody = await response.json();
-//           errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-//         } catch {
-//           // Если не удалось распарсить JSON
-//         }
-//         throw new Error(errorMessage);
-//       }
-
-//       const reader = response.body?.getReader();
-//       if (!reader) {
-//         throw new Error('ReadableStream not supported in this environment');
-//       }
-
-//       const decoder = new TextDecoder();
-//       let buffer = '';
-//       let chunkCount = 0;
-
-//       try {
-//         while (true) {
-//           const { done, value } = await reader.read();
-
-//           if (done) {
-//             // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 7 ==========
-//             console.log('🏁 [api.smartChatStream] Стрим завершен. Всего чанков:', chunkCount);
-//             // ===========================================
-//             break;
-//           }
-
-//           buffer += decoder.decode(value, { stream: true });
-//           const lines = buffer.split('\n');
-//           buffer = lines.pop() || '';
-
-//           for (const line of lines) {
-//             const trimmedLine = line.trim();
-//             if (!trimmedLine) continue;
-
-//             if (trimmedLine.startsWith('data: ')) {
-//               const jsonStr = trimmedLine.slice(6).trim();
-
-//               if (jsonStr === '[DONE]') {
-//                 // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 8 ==========
-//                 console.log('✅ [api.smartChatStream] Получен [DONE]');
-//                 // ===========================================
-//                 yield { done: true };
-//                 return;
-//               }
-
-//               try {
-//       const parsed = JSON.parse(jsonStr);
-      
-//       // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 9 ==========
-//       chunkCount++;
-//       if (chunkCount <=3) {
-//         console.log(`📦 [api.smartChatStream] Чанк #${chunkCount}:`, parsed);
-//       }
-//       // ===========================================
-
-//       if (parsed.error) {
-//         throw new Error(parsed.error);
-//       }
-
-//       // ========== 🔧 НОВАЯ ОБРАБОТКА МЕТАДАННЫХ ==========
-//       // Проверяем, есть ли type: "metadata"
-//       if (parsed.type === 'metadata') {
-//         console.log('🎯 [api] Получены метаданные из SSE:', {
-//           agent_id: parsed.agent_id,
-//           session_id: parsed.session_id
-//         });
-        
-//         yield {
-//           agentId: parsed.agent_id,
-//           sessionId: parsed.session_id,
-//           token: ''
-//         };
-//         continue; // Пропускаем дальнейшую обработку этого чанка
-//       }
-//       // ===================================================
-
-//       // Обработка токенов
-//       if (parsed.token !== undefined && parsed.token !== null) {
-//         yield {
-//           token: parsed.token,
-//         };
-//       }
-
-//       // Обработка message_id
-//       if (parsed.message_id !== undefined) {
-//         yield {
-//           message_id: parsed.message_id,
-//         };
-//       }
-//     } catch (e) {
-//             if (e instanceof Error && e.message.includes('Unexpected token')) {
-//               // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 10 ==========
-//               console.warn('⚠️ [api.smartChatStream] Ошибка парсинга JSON, пропускаем:', jsonStr);
-//               // ===========================================
-//               continue;
-//             }
-//             throw e;
-//           }
-//         }
-//       }
-//     }
-//   } catch (error) {
-//     // ========== 🔍 НОВОЕ ЛОГИРОВАНИЕ 11 ==========
-//     console.error('💥 [api.smartChatStream] Ошибка в стриме:', error);
-//     // ===========================================
-    
-//     if (error instanceof Error && error.name === 'AbortError') {
-//       return;
-//     }
-//     throw error;
-//   } finally {
-//     try {
-//       reader.releaseLock();
-//     } catch {
-//       // Игнорируем
-//     }
-//   }
-// }
-
-
-
-
-/**
- * Умный чат со стримингом
- * Поддерживает три сценария:
- * 1. {message} - только сообщение (роутинг, первый запрос)
- * 2. {message, agent_id} - сообщение + агент (ручной выбор)
- * 3. {message, agent_id, session_id} - сообщение + агент + сессия (продолжение)
- */
-async *smartChatStream(
-  message: string,
-  agent_id?: string,
-  session_id?: string | null,
-  context?: any,
-  signal?: AbortSignal
-): AsyncGenerator<{ 
-  token?: string; 
-  agentId?: string; 
-  sessionId?: string; 
-  done?: boolean;
-}, void, undefined> {
-  const url = `${this.baseUrl}/chat`;
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-User-Id': '11111111-1111-1111-1111-111111111111'
-  };
-
-  if (typeof localStorage !== 'undefined') {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
-
-  // Формируем тело запроса
-  const body: any = { 
-    message, 
-    stream: true 
-  };
-  
-  // Передаем только если есть значения
-  if (agent_id) {
-    body.agent_id = agent_id;
-  }
-  
-  if (session_id) {
-    body.session_id = session_id;
-  }
-  
-  if (context) {
-    body.context = context;
-  }
-
-  console.log('📤 [api.smartChatStream] Отправка запроса:', {
-    url,
-    body: {
-      ...body,
-      message: body.message.slice(0, 50) + (body.message.length > 50 ? '...' : '')
+  async *smartChatStream(
+    message: string,
+    model?: string,
+    conversation_id?: string | null,
+    context?: any,
+    signal?: AbortSignal,
+  ): AsyncGenerator<
+    {
+      token?: string;
+      model?: string;
+      conversation_id?: string;
+      completion_id?: string;   // <-- добавили
+      done?: boolean;
     },
-    hasSignal: !!signal
-  });
+    void,
+    undefined
+  > {
+    const url = `${this.baseUrl}/v1/chat/completions`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-  });
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'X-User-Id': '11111111-1111-1111-1111-111111111111',
+    };
 
-  console.log('📨 [api.smartChatStream] Получен ответ:', {
-    status: response.status,
-    statusText: response.statusText,
-    ok: response.ok,
-    // Логируем все заголовки для отладки
-    headers: Object.fromEntries(response.headers.entries())
-  });
-
-  if (!response.ok) {
-    console.error('❌ [api.smartChatStream] Ошибка ответа:', {
-      status: response.status,
-      statusText: response.statusText
-    });
-    
-    let errorMessage = `HTTP ${response.status}`;
-    try {
-      const errorBody = await response.json();
-      errorMessage = errorBody?.message ?? errorBody?.error ?? errorMessage;
-    } catch {
-      // Если не удалось распарсить JSON
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
     }
-    throw new Error(errorMessage);
-  }
 
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('ReadableStream not supported in this environment');
-  }
+    const body: any = {
+      model: model || 'auto',
+      stream: true,
+      messages: [{ role: 'user', content: message }],
+    };
+    if (conversation_id) body.conversation_id = conversation_id;
+    if (context) body.context = context;
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let chunkCount = 0;
+    console.log('📤 [api.smartChatStream] Отправка:', { url, body, hasSignal: !!signal });
 
-  console.log('📡 [api.smartChatStream] Начинаем чтение стрима...');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const b = await response.json();
+        errorMessage =
+          b?.error?.message ?? b?.message ?? b?.error ?? errorMessage;
+      } catch { /* ignore */ }
+      throw new Error(errorMessage);
+    }
 
-      if (done) {
-        console.log('🏁 [api.smartChatStream] Стрим завершен. Всего чанков:', chunkCount);
-        break;
-      }
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('ReadableStream not supported');
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let chunkCount = 0;
+    let lastCompletionId: string | undefined;   // <-- чтобы не спамить одним и тем же id
 
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) continue;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-        if (trimmedLine.startsWith('data: ')) {
-          const jsonStr = trimmedLine.slice(6).trim();
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
 
-          if (jsonStr === '[DONE]') {
-            console.log('✅ [api.smartChatStream] Получен [DONE]');
-            yield { done: true };
-            return;
-          }
+        for (const evt of events) {
+          for (const rawLine of evt.split('\n')) {
+            const line = rawLine.trim();
+            if (!line.startsWith('data:')) continue;
 
-          try {
-            const parsed = JSON.parse(jsonStr);
-            chunkCount++;
-            
-            // Логируем первые 3 чанка для отладки
-            if (chunkCount <= 3) {
-              console.log(`📦 [api.smartChatStream] Чанк #${chunkCount}:`, parsed);
+            const jsonStr = line.slice(5).trim();
+            if (!jsonStr) continue;
+
+            if (jsonStr === '[DONE]') {
+              yield { done: true };
+              return;
             }
+
+            let parsed: any;
+            try {
+              parsed = JSON.parse(jsonStr);
+            } catch {
+              console.warn('⚠️ Пропуск невалидного JSON:', jsonStr.slice(0, 100));
+              continue;
+            }
+
+            chunkCount++;
+            if (chunkCount <= 3) console.log(`📦 Чанк #${chunkCount}:`, parsed);
 
             if (parsed.error) {
-              throw new Error(parsed.error);
+              throw new Error(
+                parsed.error?.message ?? parsed.error ?? 'Stream error',
+              );
             }
 
-            // Обработка метаданных (agent_id и session_id)
-            // Бекенд может отправлять их как отдельные поля в JSON
-            if (parsed.type === 'metadata' || parsed.agent_id || parsed.session_id) {
-              console.log('🎯 [api] Получены метаданные из SSE:', {
-                agent_id: parsed.agent_id,
-                session_id: parsed.session_id,
-                type: parsed.type
-              });
-              
+            // === completion_id ===
+            // В OpenAI-совместимом ответе поле называется `id`.
+            // Отдаём один раз (когда встретили впервые) либо при смене.
+            const cid: string | undefined = parsed.id;
+            if (cid && cid !== lastCompletionId) {
+              lastCompletionId = cid;
+              yield { completion_id: cid, token: '' };
+            }
+
+            // === Метаданные: model / conversation_id ===
+            if (parsed.model || parsed.conversation_id) {
               yield {
-                agentId: parsed.agent_id || parsed.agentId,
-                sessionId: parsed.session_id || parsed.sessionId,
-                token: ''
+                model: parsed.model,
+                conversation_id: parsed.conversation_id,
+                token: '',
               };
+            }
+
+            // === Токен ===
+            const delta =
+              parsed?.choices?.[0]?.delta?.content ??
+              parsed?.choices?.[0]?.message?.content;
+
+            if (typeof delta === 'string' && delta.length > 0) {
+              yield { token: delta };
               continue;
             }
 
-            // Обработка токенов
-            if (parsed.token !== undefined && parsed.token !== null) {
-              yield {
-                token: parsed.token,
-              };
-            }
+            if (parsed.token != null) { yield { token: parsed.token }; continue; }
+            if (parsed.content != null) { yield { token: parsed.content }; continue; }
 
-            // Альтернативный формат: content вместо token
-            if (parsed.content !== undefined && parsed.content !== null) {
-              yield {
-                token: parsed.content,
-              };
+            // === Финал ===
+            const finishReason = parsed?.choices?.[0]?.finish_reason;
+            if (finishReason) {
+              yield { done: true };
+              return;
             }
-
-          } catch (e) {
-            if (e instanceof Error && e.message.includes('Unexpected token')) {
-              console.warn('⚠️ [api.smartChatStream] Ошибка парсинга JSON, пропускаем:', jsonStr.slice(0, 100));
-              continue;
-            }
-            throw e;
           }
         }
       }
-    }
-  } catch (error) {
-    console.error('💥 [api.smartChatStream] Ошибка в стриме:', error);
-    
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.log('🛑 [api.smartChatStream] Стрим прерван пользователем');
-      return;
-    }
-    throw error;
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Игнорируем
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      throw error;
+    } finally {
+      try { reader.releaseLock(); } catch { /* ignore */ }
     }
   }
-}
 
-
-
-
-
-  // === Загрузка файлов ===
+  // === Completion API (по completion_id) ===
 
   /**
-   * Загрузить файл на сервер
+   * Получить полный ответ по completion_id.
+   * Полезно, если стрим прервался — можно дозагрузить текст.
    */
+  async getCompletion(
+    agent_id: string,
+    completion_id: string,
+  ): Promise<any> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/chat/completions/${completion_id}`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const b = await res.json();
+        msg = b?.error?.message ?? b?.message ?? b?.error ?? msg;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg);
+    }
+
+    return res.json();
+  }
+
+  /**
+   * Получить источники RAG для конкретного ответа.
+   */
+  async getCompletionSources(
+    agent_id: string,
+    completion_id: string,
+  ): Promise<Citation[]> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/chat/completions/${completion_id}/sources`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const b = await res.json();
+        msg = b?.error?.message ?? b?.message ?? b?.error ?? msg;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+
+    // Бэкенд может вернуть массив или объект с полем sources/citations/references
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : data?.sources ?? data?.citations ?? data?.references ?? [];
+
+    return raw.map((s: any, i: number) => ({
+      id: String(s.id ?? s.doc_id ?? s.source_id ?? `src-${i + 1}`),
+      number: Number(s.number ?? i + 1),
+      title:
+        s.title ?? s.source ?? s.file_name ?? s.document_name ?? undefined,
+      snippet: s.snippet ?? s.text ?? s.chunk ?? undefined,
+      url: s.url ?? s.link ?? undefined,
+    }));
+  }
+
+  /**
+   * Альтернативное представление ответа по completion_id.
+   */
+  async getResponseByCompletion(
+    agent_id: string,
+    completion_id: string,
+  ): Promise<any> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/responses/${completion_id}`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const b = await res.json();
+        msg = b?.error?.message ?? b?.message ?? b?.error ?? msg;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg);
+    }
+
+    return res.json();
+  }
+
+  // === Feedback по completion_id ===
+
+  async setCompletionFeedback(
+    agent_id: string,
+    completion_id: string,
+    vote: number,
+    comment?: string,
+  ): Promise<Feedback> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/chat/completions/${completion_id}/feedback`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ vote, comment }),
+    });
+    return this.handleResponse<Feedback>(res);
+  }
+
+  async getCompletionFeedback(
+    agent_id: string,
+    completion_id: string,
+  ): Promise<Feedback> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/chat/completions/${completion_id}/feedback`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return this.handleResponse<Feedback>(res);
+  }
+
+  async deleteCompletionFeedback(
+    agent_id: string,
+    completion_id: string,
+  ): Promise<void> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/chat/completions/${completion_id}/feedback`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    await this.handleResponse<void>(res);
+  }
+
+  // === Platform conversations ===
+
+  /**
+   * Создать беседу в платформенном API.
+   */
+  async createPlatformConversation(
+    agent_id: string,
+    payload?: { name?: string; model?: string },
+  ): Promise<Conversation> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload ?? {}),
+    });
+    return this.handleResponse<Conversation>(res);
+  }
+
+  /**
+   * Список бесед агента.
+   */
+  async listPlatformConversations(
+    agent_id: string,
+  ): Promise<Conversation[]> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return this.handleResponse<Conversation[]>(res);
+  }
+
+  /**
+   * Сообщения беседы.
+   */
+  async getPlatformConversationMessages(
+    agent_id: string,
+    conversation_id: string,
+  ): Promise<ApiMessage[]> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}/messages`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return this.handleResponse<ApiMessage[]>(res);
+  }
+
+  /**
+   * Переименовать беседу.
+   */
+  async renamePlatformConversation(
+    agent_id: string,
+    conversation_id: string,
+    name: string,
+  ): Promise<Conversation> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ name }),
+    });
+    return this.handleResponse<Conversation>(res);
+  }
+
+  /**
+   * Удалить беседу.
+   */
+  async deletePlatformConversation(
+    agent_id: string,
+    conversation_id: string,
+  ): Promise<void> {
+    const url = `${this.baseUrl}/agents/${agent_id}/v1/platform/conversations/${conversation_id}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    await this.handleResponse<void>(res);
+  }
+
+  // === Файлы ===
+
   async uploadFile(
     file: File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
   ): Promise<{ fileId: string; url: string }> {
     const formData = new FormData();
     formData.append('file', file);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable && onProgress) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          onProgress(progress);
+          onProgress(Math.round((event.loaded / event.total) * 100));
         }
       });
-
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const response = JSON.parse(xhr.responseText) as {
-              fileId: string;
-              url: string;
-            };
-            resolve(response);
+            resolve(JSON.parse(xhr.responseText));
           } catch {
             reject(new Error('Invalid response format'));
           }
@@ -1557,148 +640,203 @@ async *smartChatStream(
           reject(new Error(`Upload failed: ${xhr.status}`));
         }
       });
+      xhr.addEventListener('error', () => reject(new Error('Network error')));
+      xhr.addEventListener('abort', () =>
+        reject(new DOMException('Upload aborted', 'AbortError')),
+      );
 
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        reject(new DOMException('Upload aborted', 'AbortError'));
-      });
-
-      const token = typeof localStorage !== 'undefined'
-        ? localStorage.getItem('auth_token')
-        : null;
-
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
+      const token =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem('auth_token')
+          : null;
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
       xhr.open('POST', `${this.baseUrl}/upload`);
       xhr.send(formData);
     });
   }
 
-  /**
-   * Отправить файл на OCR распознавание
-   * @param file - файл для распознавания (изображение или PDF)
-   * @param onProgress - колбэк для отслеживания прогресса загрузки
-   * @returns Promise<string> - распознанный текст
-   * @throws {Error} - с сообщением об ошибке от сервера
-   */
-  
-  async ocrFile(
-  file: File,
-  onProgress?: (progress: number) => void
-): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  // Создаем XHR для прогресса
-  const xhr = new XMLHttpRequest();
-  
-  // Отслеживаем прогресс загрузки
-  xhr.upload.addEventListener('progress', (event) => {
-    if (event.lengthComputable && onProgress) {
-      const progress = Math.round((event.loaded / event.total) * 100);
-      onProgress(progress);
-    }
-  });
-
-  // Создаем Promise для Fetch
-  const fetchPromise = fetch(`${this.baseUrl}/agents/ocr/ocr`, {
+  // agents/${agent_id}/v1/platform/conversations/${conversation_id}
+  // Создать RAG
+  async createRAGSet(payload: {
+  name: string;
+  description?: string | null;
+  top_k?: number;
+  score_threshold?: number;
+  prompt?: string | null;
+  temperature?: number;
+}): Promise<{ id: string }> {
+  const res = await fetch(`${this.baseUrl}/agents/rag_ingestion/v1/platform/rags`, {
     method: 'POST',
-    headers: {
-      'X-User-Id': '11111111-1111-1111-1111-111111111111',
-      ...(localStorage.getItem('auth_token') && {
-        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-      })
-    },
-    body: formData,
+    // headers: { 'Content-Type': 'application/json' },
+    headers: this.getHeaders(),
+    body: JSON.stringify(payload),
   });
-
-  // Ожидаем ответ
-  const response = await fetchPromise;
-  
-  if (!response.ok) {
-    let errorMessage = `Ошибка ${response.status}`;
-    try {
-      const error = await response.json();
-      errorMessage = error.detail || error.message || error.error || errorMessage;
-    } catch {
-      // Игнорируем
-    }
-    throw new Error(errorMessage);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `HTTP ${res.status}`);
   }
+  return res.json();
+}
 
-  // Читаем поток
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('ReadableStream not supported');
+async uploadRAGDocuments(
+  ragId: string,
+  files: File[],
+): Promise<{ documents: Array<{ id: string; filename: string; status: string; duplicate_of: string | null }> }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+
+  const res = await fetch(
+    `${this.baseUrl}/agents/rag_ingestion/v1/platform/rags/${ragId}/documents`,
+    {
+      headers: this.getHeadersRAGDocumentsUpload(),
+      method: 'POST',
+      body: formData,
+      // Content-Type НЕ ставим — браузер сам выставит multipart boundary
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `HTTP ${res.status}`);
   }
+  return res.json();
+}
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullText = '';
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        break;
+
+  /**
+ * OCR: распознать файл (изображение/PDF) напрямую, без диалога.
+ * POST /agents/ocr/ocr
+ * multipart/form-data, поле "file"
+ * Ответ — SSE-стрим: data: {"token": "..."} ... data: [DONE]
+ */
+  async ocrFile(
+    file: File,
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    onProgress?.(0);
+
+    const response = await fetch(`${this.baseUrl}/agents/ocr/ocr`, {
+      method: 'POST',
+      headers: {
+        'X-User-Id': '11111111-1111-1111-1111-111111111111',
+        ...(typeof localStorage !== 'undefined' &&
+          localStorage.getItem('auth_token')
+          ? { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+          : {}),
+        // ВАЖНО: Content-Type НЕ ставим — браузер сам выставит
+        // multipart/form-data; boundary=... для FormData
+      },
+      body: formData,
+      signal,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Ошибка ${response.status}`;
+      try {
+        const e = await response.json();
+        errorMessage = e.detail || e.message || e.error || errorMessage;
+      } catch {
+        /* ignore */
       }
+      throw new Error(errorMessage);
+    }
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('ReadableStream not supported');
 
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('data: ')) {
-          const jsonStr = trimmedLine.slice(6).trim();
-          
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE-события разделены \n\n; но ваш пример — построчный "data: ..."
+        // Обработаем оба варианта: сначала разбиваем по \n
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // последняя строка может быть неполной
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line.startsWith('data:')) continue;
+
+          const jsonStr = line.slice(5).trim(); // поддерживаем и "data: x", и "data:x"
+          if (!jsonStr) continue;
+
           if (jsonStr === '[DONE]') {
-            continue;
+            onProgress?.(100);
+            return fullText || '';
           }
-          
+
           try {
             const parsed = JSON.parse(jsonStr);
-            if (parsed.token) {
+            if (typeof parsed.token === 'string' && parsed.token.length > 0) {
               fullText += parsed.token;
+              // прогресс "обработки" — по количеству полученных токенов
+              // (не процентах, а как индикатор активности)
+              onProgress?.(Math.min(99, Math.round(fullText.length / 10)));
             }
-          } catch (e) {
-            console.warn('⚠️ [OCR] Ошибка парсинга:', jsonStr, e);
+          } catch {
+            /* некорректный JSON — пропускаем */
           }
         }
       }
+    } catch (error) {
+      // При отмене возвращаем то, что успели распознать — это полезный результат
+      if (error instanceof Error && error.name === 'AbortError') {
+        return fullText || '';
+      }
+      throw error;
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        /* ignore */
+      }
     }
-  } finally {
-    reader.releaseLock();
+
+    onProgress?.(100);
+    return fullText || '';
   }
-
-  console.log('✅ [OCR] Распознано символов:', fullText.length);
-  return fullText || '';
-}
 }
 
-// Создаем экземпляр клиента
 export const apiClient = new ApiClient();
 
-// Экспортируем отдельные функции для удобства
 export const {
-  createSession,
-  listSessions,
-  getSessionMessages,
-  renameSession,
-  deleteSession,
+  createConversation,
+  listConversations,
+  allModelsConversations,
+  getConversationMessages,
+  renameConversation,
+  deleteConversation,
   setFeedback,
   getFeedback,
   deleteFeedback,
   chat,
   streamChat,
-  smartChat,
   smartChatStream,
   uploadFile,
-  allAgentsSessions
+  ocrFile,
+  getCompletion,
+  getCompletionSources,
+  getResponseByCompletion,
+  setCompletionFeedback,
+  getCompletionFeedback,
+  deleteCompletionFeedback,
+  createPlatformConversation,
+  listPlatformConversations,
+  getPlatformConversationMessages,
+  renamePlatformConversation,
+  deletePlatformConversation,
+  createRAGSet,
+  uploadRAGDocuments
 } = apiClient;

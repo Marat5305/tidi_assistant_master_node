@@ -10,6 +10,7 @@ export function ChatContainer() {
   const messages = useChatStore((state) => state.messages);
   const isMasterMode = useChatStore((state) => state.isMasterMode);
   const isStreaming = useChatStore((state) => state.isStreaming);
+  const model = useChatStore((state) => state.model);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -73,6 +74,7 @@ export function ChatContainer() {
       messagesCount: messages.length,
       isMasterMode,
       showMessages,
+      model,
       messages: messages.map(m => ({ role: m.role, content: m.content?.slice(0, 30) }))
     });
   }, [messages, isMasterMode, showMessages]);

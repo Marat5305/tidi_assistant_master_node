@@ -1,5 +1,5 @@
 // src/components/chat/ThreadSidebar.tsx
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { useUIStore } from '../../store/uiStore';
 import { Menu, PanelLeftClose, Search, Plus, Trash2 } from 'lucide-react';
@@ -7,117 +7,122 @@ import { groupThreadsByDate, type ThreadGroup } from '../../utils/threadGrouping
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { AgentSelector } from './AgentSelector';
 import logo from '../../assets/logo.svg';
-import type { Session } from '../../types/chat';
+import type { Conversation } from '../../types/chat';
 import { formatDateShort } from '../../utils/dateFormat';
+import ModalRAGSetting from './ModalRAGSetting';
+
+type ThreadWithModel = Conversation & {
+  _model: string;
+  _modelName: string;
+};
 
 export function ThreadSidebar() {
-  const sidebarOpen = useUIStore((state) => state.sidebarOpen);
-  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
-  const agentsList = useChatStore((state) => state.agents_list);
-  const currentSessionId = useChatStore((state) => state.currentSessionId);
-  const createThread = useChatStore((state) => state.createSession);
-  const setActiveThread = useChatStore((state) => state.setActiveSession);
-  const deleteThread = useChatStore((state) => state.deleteSession);
-  const activeAgentId = useChatStore((state) => state.agentId);
-  const getAllAgentsSessions = useChatStore((state) => state.getAllAgentsSessions);
+  const modelsList = useChatStore((s) => s.models_list);
+  const currentConversationId = useChatStore((s) => s.currentConversation_id);
+  const activeModel = useChatStore((s) => s.model);
+  const createConversation = useChatStore((s) => s.createConversation);
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const deleteConversation = useChatStore((s) => s.deleteConversation);
+  const getAllModelsConversations = useChatStore(
+    (s) => s.getAllModelsConversations,
+  );
 
-  // Локальное состояние для фильтрации в сайдбаре (не влияет на activeAgentId)
-  const [selectedFilterAgentId, setSelectedFilterAgentId] = useState<string | null>(null);
-
+  // Локальный фильтр — не меняет активного агента
+  const [selectedFilterModel, setSelectedFilterModel] = useState<string | null>(
+    null,
+  );
   const [threadGroups, setThreadGroups] = useState<ThreadGroup[]>([]);
-  const [threadToDelete, setThreadToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [threadToDelete, setThreadToDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isModalRAGOpen, setIsModalRAGOpen] = useState(false);
 
-  // Загружаем сессии всех агентов при монтировании
+  // Грузим все беседы всех агентов при монтировании
   useEffect(() => {
-    getAllAgentsSessions();
-  }, [getAllAgentsSessions]);
+    getAllModelsConversations();
+  }, [getAllModelsConversations]);
 
-  // Получаем все сессии из agents_list с информацией об агенте
-  const allSessionsWithAgentInfo = useMemo(() => {
-    const result: Array<Session & { _agentId: string; _agentName: string }> = [];
+  // Разворачиваем models_list в плоский список бесед с инфо об агенте
+  const allThreads = useMemo<ThreadWithModel[]>(() => {
+    if (!Array.isArray(modelsList)) return [];
 
-    if (!Array.isArray(agentsList)) {
-      console.warn('agentsList не является массивом:', agentsList);
-      return result;
+    const result: ThreadWithModel[] = [];
+    for (const entry of modelsList) {
+      if (!entry || !Array.isArray(entry.conversations)) continue;
+      for (const conversation of entry.conversations) {
+        result.push({
+          ...conversation,
+          _model: entry.model,
+          _modelName: entry.model_name,
+        });
+      }
     }
 
-    agentsList.forEach((agent) => {
-      if (!agent || !Array.isArray(agent.sessions)) {
-        console.warn('agent.sessions не является массивом:', agent);
-        return;
-      }
-
-      agent.sessions.forEach((session) => {
-        result.push({
-          ...session,
-          _agentId: agent.agent_id,
-          _agentName: agent.agent_name,
-        });
-      });
+    // Свежие сверху
+    result.sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) : 0;
+      const tb = b.created_at ? Date.parse(b.created_at) : 0;
+      return tb - ta;
     });
 
     return result;
-  }, [agentsList]);
+  }, [modelsList]);
 
-  // Фильтруем сессии на основе локального фильтра (selectedFilterAgentId)
+  // Фильтр по агенту — только для отображения
   const filteredThreads = useMemo(() => {
-    // Если фильтр не выбран ("Все агенты") - показываем все сессии
-    if (!selectedFilterAgentId) {
-      return allSessionsWithAgentInfo;
-    }
-    // Иначе показываем только сессии выбранного агента
-    return allSessionsWithAgentInfo.filter((thread) => thread._agentId === selectedFilterAgentId);
-  }, [allSessionsWithAgentInfo, selectedFilterAgentId]);
+    if (!selectedFilterModel) return allThreads;
+    return allThreads.filter((t) => t._model === selectedFilterModel);
+  }, [allThreads, selectedFilterModel]);
 
   useEffect(() => {
     setThreadGroups(groupThreadsByDate(filteredThreads));
   }, [filteredThreads]);
 
-  const handleNewChat = () => {
-    // Для создания чата используем активного агента из стора
-    if (activeAgentId) {
-      createThread();
-    } else {
+  const handleNewChat = async () => {
+    // Создаём у активного агента. Если агент не выбран — берём первого из фильтра.
+    const targetModel = activeModel || selectedFilterModel;
+    if (!targetModel) {
       console.warn('⚠️ Выберите агента перед созданием чата');
+      return;
     }
+
+    // Если активный агент не совпадает с фильтром — переключаем
+    if (targetModel !== activeModel) {
+      useChatStore.getState().setModel(targetModel);
+    }
+
+    await createConversation();
+    // Обновим общий список, чтобы новый чат появился в сайдбаре
+    await getAllModelsConversations();
   };
 
-  const handleThreadClick = async (threadId: string) => {
-    console.log('🖱️ Клик по сессии:', threadId);
-
+  const handleThreadClick = async (conversationId: string) => {
     try {
-      // Активируем сессию (она сама переключит агента)
-      await setActiveThread(threadId);
-
-      // Обновляем список сессий всех агентов
-      // await getAllAgentsSessions();
-
-      console.log('✅ Сессия активирована:', threadId);
-    } catch (error) {
-      console.error('❌ Ошибка при активации сессии:', error);
+      await setActiveConversation(conversationId);
+    } catch (e) {
+      console.error('❌ Ошибка активации беседы:', e);
     }
   };
 
-  const handleDeleteClick = (e: React.MouseEvent, threadId: string, threadTitle: string) => {
+  const handleDeleteClick = (
+    e: React.MouseEvent,
+    id: string,
+    title: string,
+  ) => {
     e.stopPropagation();
-    setThreadToDelete({ id: threadId, title: threadTitle });
+    setThreadToDelete({ id, title });
   };
 
-  const handleConfirmDelete = () => {
-    if (threadToDelete) {
-      deleteThread(threadToDelete.id);
-      setThreadToDelete(null);
-    }
-  };
-
-  const handleCloseDialog = () => {
+  const handleConfirmDelete = async () => {
+    if (!threadToDelete) return;
+    const id = threadToDelete.id;
     setThreadToDelete(null);
-  };
-
-  // Обработчик изменения фильтра в селекте
-  const handleFilterChange = (agentId: string | null) => {
-    setSelectedFilterAgentId(agentId);
+    await deleteConversation(id);
+    await getAllModelsConversations();
   };
 
   return (
@@ -147,7 +152,9 @@ export function ThreadSidebar() {
                 <div className="flex justify-between items-end mb-4">
                   <div className="flex gap-1 items-end">
                     <img src={logo} alt="Логотип" className="h-8 w-auto" />
-                    <h2 className="text-2xl font-bold italic tracking-wide text-gradient-logo">тиди</h2>
+                    <h2 className="text-2xl font-bold italic tracking-wide text-gradient-logo">
+                      тиди
+                    </h2>
                   </div>
                   <div className="flex items-end gap-1">
                     <button
@@ -166,33 +173,49 @@ export function ThreadSidebar() {
                   </div>
                 </div>
 
-                {/* Передаем локальный фильтр в AgentSelector */}
                 <AgentSelector
-                  selectedFilterAgentId={selectedFilterAgentId}
-                  onFilterChange={handleFilterChange}
+                  selectedFilterModel={selectedFilterModel}
+                  onFilterChange={setSelectedFilterModel}
                 />
 
                 <button
                   onClick={handleNewChat}
-                  disabled={!activeAgentId}
+                  disabled={!activeModel && !selectedFilterModel}
                   className={`w-full mb-4 px-3 py-2 flex items-center gap-2 text-sm rounded-lg shadow-sm border border-gray-200 transition-all
-                    ${activeAgentId
+                    ${activeModel || selectedFilterModel
                       ? 'text-gray-500 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:shadow-md'
-                      : 'text-gray-300 cursor-not-allowed opacity-50'}`}
+                      : 'text-gray-300 cursor-not-allowed opacity-50'
+                    }`}
                 >
                   <Plus size={16} />
                   Новый чат
                 </button>
+                <button 
+                      className={`w-full mb-4 px-3 py-2 flex items-center gap-2 
+                      bg-[var(--color-primary)]/50
+                      text-sm rounded-lg shadow-sm border border-gray-200 transition-all
+                      text-white-500 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:shadow-md`}
+                      onClick={() => setIsModalRAGOpen(true)}>
+                  Создать RAG
+                </button>
+                <ModalRAGSetting isOpen={isModalRAGOpen} onClose={() => setIsModalRAGOpen(false)} />
 
                 {filteredThreads.length > 0 ? (
                   <div className="flex-1 overflow-y-auto thin-scrollbar">
                     {threadGroups.map((group) => (
                       <div key={group.title} className="mb-4">
-                        <p className="text-xs font-semibold text-gray-400 mb-2">{group.title}</p>
+                        <p className="text-xs font-semibold text-gray-400 mb-2">
+                          {group.title}
+                        </p>
 
                         <div className="space-y-1">
                           {group.threads.map((thread) => {
-                            const agentName = (thread as any)._agentName;
+                            const modelName = (thread as any)._modelName;
+                            const title =
+                              thread.name ??
+                              (thread.created_at
+                                ? formatDateShort(thread.created_at)
+                                : 'Без названия');
 
                             return (
                               <div
@@ -200,7 +223,7 @@ export function ThreadSidebar() {
                                 onClick={() => handleThreadClick(thread.id)}
                                 className={`
                                   group relative px-3 py-2 rounded-lg cursor-pointer transition-all
-                                  ${currentSessionId === thread.id
+                                  ${currentConversationId === thread.id
                                     ? 'bg-[var(--color-accent)]/50 dark:bg-blue-900/50'
                                     : 'hover:bg-[var(--color-accent)]/15 dark:hover:bg-gray-800'
                                   }
@@ -209,23 +232,24 @@ export function ThreadSidebar() {
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium truncate">
-                                      {thread.title ? thread.title : formatDateShort(thread.created_at)}
+                                      {title}
                                     </div>
-                                    {!selectedFilterAgentId && agentName && (
+                                    {!selectedFilterModel && modelName && (
                                       <div className="text-xs text-gray-400 truncate">
-                                        {agentName}
+                                        {modelName}
                                       </div>
                                     )}
                                   </div>
 
                                   <button
-                                    onClick={(e) => handleDeleteClick(e, thread.id, thread.title)}
-                                    className={`
-                                      opacity-0 group-hover:opacity-100 transition-opacity
-                                      p-1 rounded-md text-gray-400 hover:text-red-500 
-                                      hover:bg-red-50 dark:hover:bg-red-900/20
-                                      flex-shrink-0
-                                    `}
+                                    onClick={(e) =>
+                                      handleDeleteClick(
+                                        e,
+                                        thread.id,
+                                        title,
+                                      )
+                                    }
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
                                     aria-label="Удалить чат"
                                   >
                                     <Trash2 size={14} />
@@ -241,11 +265,9 @@ export function ThreadSidebar() {
                 ) : (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center text-gray-400 text-sm whitespace-pre-line">
-                      {!selectedFilterAgentId && 'Выберите агента\nдля просмотра чатов'}
-                      {selectedFilterAgentId === 'ocr' && 'Распознавание изображений\nНет чатов'}
-                      {selectedFilterAgentId === 'tech_rag' && 'Техническая документация\nНет чатов'}
-                      {selectedFilterAgentId && selectedFilterAgentId !== 'ocr' && selectedFilterAgentId !== 'tech_rag' &&
-                        'Нет чатов'}
+                      {!selectedFilterModel
+                        ? 'Выберите агента\nдля просмотра чатов'
+                        : 'Нет чатов'}
                     </div>
                   </div>
                 )}
@@ -257,10 +279,10 @@ export function ThreadSidebar() {
 
       <ConfirmDialog
         isOpen={threadToDelete !== null}
-        onClose={handleCloseDialog}
+        onClose={() => setThreadToDelete(null)}
         onConfirm={handleConfirmDelete}
         title="Удалить чат?"
-        description={`Вы уверены, что хотите удалить чат "${threadToDelete?.title}"? Это действие нельзя отменить.`}
+        description={`Вы уверены, что хотите удалить чат "${threadToDelete?.title ?? ''}"? Это действие нельзя отменить.`}
         confirmText="Удалить"
         cancelText="Отмена"
         confirmVariant="danger"

@@ -7,28 +7,32 @@ import { SettingsDialog } from '../ui/SettingsDialog';
 import { useChatStore } from '../../store/chatStore';
 
 export function AgentSidebar() {
-  // const activeAgent = useUIStore((state) => state.activeAgent);
-  // const setActiveAgent = useUIStore((state) => state.setActiveAgent);
-  const { setAgentId, agentId, createSession } = useChatStore();
+  const setModel = useChatStore((s) => s.setModel);
+  const model = useChatStore((s) => s.model);
+  const createConversation = useChatStore((s) => s.createConversation);
+  const getAllModelsConversations = useChatStore(
+    (s) => s.getAllModelsConversations,
+  );
 
-  // Забираем из стора функции для работы с модалками
-  const activeModal = useUIStore((state) => state.activeModal);
-  const openModal = useUIStore((state) => state.openModal);
-  const closeModal = useUIStore((state) => state.closeModal);
+  const activeModal = useUIStore((s) => s.activeModal);
+  const openModal = useUIStore((s) => s.openModal);
+  const closeModal = useUIStore((s) => s.closeModal);
 
-  // Обработчик клика по Профилю
-  const handleProfileClick = () => {
-    openModal('profile');  // Устанавливаем activeModal = 'profile'
-  };
+  const handleProfileClick = () => openModal('profile');
+  const handleSettingsClick = () => openModal('settings');
 
-  // Обработчик клика по Настройкам
-  const handleSettingsClick = () => {
-    openModal('settings');
-  };
+  // Создаём беседу у выбранного агента
+  const handleAgentClick = async (id: string) => {
+    // Переключаем модель (setModel сам подгрузит беседы)
+    setModel(id);
 
-  // Обработчик создания нового чата
-  const handleNewChat = () => {
-    createSession();
+    try {
+      await createConversation();
+      // Обновим общий список, чтобы новый чат появился в ThreadSidebar
+      await getAllModelsConversations();
+    } catch (err) {
+      console.error('❌ Не удалось создать беседу:', err);
+    }
   };
 
   return (
@@ -47,32 +51,30 @@ export function AgentSidebar() {
           </span>
         </button>
 
-        {/* Разделитель */}
         <div className="w-12 h-px bg-[var(--color-surface)] mb-4" />
 
         {/* Агенты */}
         <div className="flex flex-col gap-3">
           {AGENTS.map((agent) => {
-            // const isActive = activeAgent === agent.id;
-            const isActive = agentId === agent.id;
+            const isActive = model === agent.id;
             const Icon = agent.icon;
 
             return (
               <button
                 key={agent.id}
-                // onClick={() => setActiveAgent(isActive ? null : agent.id)}
-                onClick={() => {setAgentId(agent.id); handleNewChat()}}
+                onClick={() => handleAgentClick(agent.id)}
                 className={`
                   flex flex-col items-center gap-1 p-2 rounded-xl transition-all
                   hover:scale-105
-                  ${isActive
-                    ? 'bg-[var(--color-accent)] text-white shadow-md'
-                    : 'text-gray-500 hover:bg-[var(--color-surface)] hover:text-[var(--color-accent)]'
+                  ${
+                    isActive
+                      ? 'bg-[var(--color-accent)] text-white shadow-md'
+                      : 'text-gray-500 hover:bg-[var(--color-surface)] hover:text-[var(--color-accent)]'
                   }
                 `}
                 title={agent.description}
               >
-                <Icon size={22} />
+                {Icon && <Icon size={22} />}
                 <span className="text-[10px] leading-tight text-center">
                   {agent.name}
                 </span>
@@ -106,14 +108,11 @@ export function AgentSidebar() {
         </div>
       </aside>
 
-
-      {/* Рендерим модалку - она будет открываться, когда activeModal === 'profile' */}
       <ProfileDialog
         isOpen={activeModal === 'profile'}
         onClose={closeModal}
       />
 
-      {/* Рендерим модалку настроек */}
       <SettingsDialog
         isOpen={activeModal === 'settings'}
         onClose={closeModal}
