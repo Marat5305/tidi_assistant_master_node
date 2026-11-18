@@ -3,7 +3,7 @@ import { AGENTS } from '../config/agents';
 import type {
   Conversation,
   ApiMessage,
-  ChatResponse,
+  // ChatResponse,
   ModelsConversationsEntry,
   Citation,
   ConversationMessagesResponse,

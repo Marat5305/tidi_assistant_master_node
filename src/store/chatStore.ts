@@ -3,10 +3,10 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { apiClient, resolveAgentIdForSources } from '../services/api';
 import type {
-  Message, Citation, ChatState, ChatActions, AllModelsConversations, FileAttachment,
+  Message, Citation, ChatState, ChatActions, AllModelsConversations,
 } from '../types/chat';
 import { generateId } from '../utils/id';
-import { validateFile } from '../config/ocr';
+// import { validateFile } from '../config/ocr';
 import { mergeCitations } from '../utils/citations';
 
 type ChatStore = ChatState & ChatActions & AllModelsConversations;
