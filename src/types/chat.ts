@@ -2,9 +2,12 @@ import type { LucideIcon } from 'lucide-react';
 
 export interface Conversation {
   id: string;
-  rag_id: string;
+  rag_id?: string;
+  /** legacy-поле; бэкенд отдаёт `title` */
   name?: string;
-  model: string;
+  /** реальное поле бэкенда */
+  title?: string;
+  model?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -19,17 +22,20 @@ export interface Message {
   created_at?: string;
   status: 'sent' | 'error' | 'pending';
   citations?: Citation[];
+  /** legacy, Chat Completions */
   completion_id?: string;
+  /** Responses API: resp_... */
+  response_id?: string;
 }
 
 export interface Citation {
-  id: string;          // обязательный — используется как key/data-attr/аргумент
-  number: number;      // порядковый номер для бейджа
-  title?: string;      // заголовок источника
-  snippet?: string;    // краткий текст / выдержка
-  url?: string;        // ссылка
-  source?: string;     // (опционально) исходное поле с бэка
-  text?: string;       // (опционально) полный текст
+  id: string;
+  number: number;
+  title?: string;
+  snippet?: string;
+  url?: string;
+  source?: string;
+  text?: string;
 }
 
 export interface FileAttachment {
@@ -40,11 +46,11 @@ export interface FileAttachment {
   status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
   progress: number;
   file?: File;
-  fileId?: string;          // <-- id из uploadFile (file-85b365de-...)
+  fileId?: string;
   previewUrl?: string;
   extractedText?: string;
   error?: string;
-  url?: string;             // оставьте, если где-то ещё используется
+  url?: string;
 }
 
 export interface SuggestionAction {
@@ -82,7 +88,11 @@ export interface ChatState {
   uploadingFiles: FileAttachment[];
   models_list: ModelsConversationsEntry[];
   abortController: AbortController | null;
+   availableRags: { id: string; name: string }[];
+  /** legacy */
   completionId: string | null;
+  /** Responses API */
+  responseId: string | null;
 }
 
 export interface ChatActions {
@@ -149,6 +159,7 @@ export interface ChatActions {
     | { ok: true; ragId: string; documents: unknown }
     | { ok: false; error: string }
   >;
+  loadAvailableRags: () => Promise<void>;
 }
 
 export interface AllModelsConversations {
@@ -165,8 +176,31 @@ export interface ChatResponse {
 
 export interface ApiMessage {
   id: string;
-  conversation_id: string;
+  object?: string;
+  conversation_id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  status?: string;
+  error?: string | null;
   created_at?: string;
 }
+
+export interface PaginatedMessages {
+  data: ApiMessage[];
+  has_more: boolean;
+}
+
+export type ConversationMessagesResponse = ApiMessage[] | PaginatedMessages;
+
+/** Сырые события Responses API (SSE) — для типизации. */
+export type ResponsesSSEEvent =
+  | { type?: 'response.created'; sequence_number?: number; response?: any; id?: string; model?: string; conversation_id?: string }
+  | { type?: 'response.in_progress'; sequence_number?: number; response?: any; id?: string }
+  | { type?: 'response.output_item.added'; sequence_number?: number; output_index?: number; item: any }
+  | { type?: 'response.content_part.added'; sequence_number?: number; item_id?: string; output_index?: number; content_index?: number; part: any }
+  | { type?: 'response.output_text.delta'; sequence_number?: number; item_id?: string; output_index?: number; content_index?: number; delta: string; id?: string }
+  | { type?: 'response.output_text.done'; sequence_number?: number; item_id?: string; output_index?: number; content_index?: number; text: string; id?: string }
+  | { type?: 'response.content_part.done'; sequence_number?: number; item_id?: string; output_index?: number; content_index?: number; part: any; id?: string }
+  | { type?: 'response.output_item.done'; sequence_number?: number; output_index?: number; item: any; id?: string }
+  | { type?: 'response.completed'; sequence_number?: number; response?: any; id?: string; status?: string; model?: string; usage?: any }
+  | { type?: 'error'; sequence_number?: number; message?: string; code?: string };
