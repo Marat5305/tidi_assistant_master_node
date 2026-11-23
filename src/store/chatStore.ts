@@ -189,8 +189,8 @@ export const useChatStore = create<ChatStore>()(
         try {
           const raw = await apiClient.getConversationMessages(agentId, conversation_id);
           const list = Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
-          const chronological = [...list].reverse();
-          const formatted: Message[] = chronological.map((m: any) => ({
+          // const chronological = [...list].reverse();
+          const formatted: Message[] = list.map((m: any) => ({
             id: m.id, role: m.role, content: m.content ?? '', threadId: conversation_id, conversation_id,
             timestamp: m.created_at ? Date.parse(m.created_at) : Date.now(), created_at: m.created_at || new Date().toISOString(),
             status: m.error ? 'error' : 'sent',

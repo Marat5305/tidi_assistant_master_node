@@ -18,12 +18,12 @@ export const AGENTS: AgentConfig[] = [
   //   description: 'Все агенты',
   //   icon: ListIndentIncrease,
   // },
-  // {
-  //   id: 'epoz',
-  //   name: 'ЕПоЗ',
-  //   description: 'Единое Положение о закупках',
-  //   icon: Wallet,
-  // },
+  {
+    id: 'epoz',
+    name: 'ЕПоЗ',
+    description: 'Единое Положение о закупках',
+    icon: Wallet,
+  },
   {
     id: 'chat',
     name: 'Общий чат',
